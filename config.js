@@ -4,5 +4,5 @@
    UNIT       : ชื่อหน่วย แสดงที่หน้าแรกและท้ายโปสเตอร์                         */
 window.LNAV_CONFIG = {
   SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzfH_Rv5jAESmRRVvxoHfbXJY_gubCuDskVVXvA3Ug9oYY7OqV_8u41xdRlK1Mh4EEd/exec',
-  UNIT: 'แผนกฝึกการยังชีพ · โรงเรียนการบิน กองทัพอากาศ'
+  UNIT: 'แผนกฝึกการยังชีพ กองการศึกษา · โรงเรียนการบิน กองทัพอากาศ'
 };
