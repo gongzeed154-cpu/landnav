@@ -2,148 +2,103 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap">
 <style>
 @page{size:A4;margin:0}*{box-sizing:border-box}
-body{margin:0;font-family:"IBM Plex Sans Thai",Loma,sans-serif;color:#1b2117;font-size:8.3pt;line-height:1.3}
-.pg{width:210mm;height:297mm;padding:8mm 9mm 6mm;display:flex;flex-direction:column;page-break-after:always;overflow:hidden}
+body{margin:0;font-family:"IBM Plex Sans Thai",Loma,sans-serif;color:#1b2117;font-size:8.6pt;line-height:1.33}
+.pg{width:210mm;height:297mm;padding:9mm 10mm 7mm;display:flex;flex-direction:column;page-break-after:always;overflow:hidden;position:relative}
 .pg:last-child{page-break-after:auto}
-.top{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2.5px solid #2f3d27;padding-bottom:2mm}
-h1{font-size:20pt;margin:0;line-height:1.1}.kind{font-size:11pt;color:#4a5544;margin-top:1mm}
-.blank{font-size:10.5pt;margin:2mm 0 2mm}.blank span{display:inline-block;border-bottom:1px dotted #333;width:105mm;height:5mm;vertical-align:bottom}.blank span.s{width:22mm}
-.qrs{display:grid;grid-template-columns:1fr 1fr;gap:5mm}
-.q{border:1.8px solid #2f3d27;border-radius:4mm;padding:3mm;display:flex;gap:3mm;align-items:center}
-.q img{width:31mm;height:31mm;image-rendering:pixelated;flex:none}.q h2{margin:0 0 1mm;font-size:13pt}.q p{margin:0;font-size:9pt;color:#3d4737}
-.tag{display:inline-block;background:#2f3d27;color:#fff;border-radius:2mm;padding:0 2mm;font-size:8.5pt;margin-bottom:1mm}
-.cols{column-count:2;column-gap:5mm;margin-top:2mm;flex:1}
-h3{font-size:9.6pt;margin:1.6mm 0 0.8mm;padding:0.6mm 2mm;background:#e7ecdf;border-left:3px solid #2f3d27;break-after:avoid}
-ul,ol{margin:0 0 1mm;padding-left:5mm}li{margin:0.1mm 0}
+.band{display:flex;justify-content:space-between;align-items:center;background:#2f3d27;color:#fff;border-radius:3mm;padding:2.5mm 4mm}
+.band.game{background:#1d241a;border:1.5px solid #f0b03a}
+.band h1{font-size:21pt;margin:0;line-height:1.1}.band .sub{font-size:10.5pt;opacity:.85}
+.pill{display:inline-block;font-weight:700;font-size:11pt;padding:1mm 4mm;border-radius:99px;background:#fff;color:#2f3d27}
+.band.game .pill{background:#f0b03a;color:#1b2117}
+.hero{display:grid;grid-template-columns:66mm 1fr;gap:6mm;margin-top:4mm;align-items:start}
+.qrbox{border:2.2px solid #2f3d27;border-radius:4mm;padding:3mm;text-align:center}
+.qr{width:58mm;height:58mm;margin:0 auto}.qr svg{width:100%;height:100%}
+.url{font-family:"DejaVu Sans Mono",monospace;font-size:7pt;word-break:break-all;color:#3d4737;margin-top:1.5mm}
+.scan{font-weight:700;font-size:10pt;margin-top:1mm}
+.steps{margin:0;padding:0;list-style:none;counter-reset:s}
+.steps li{counter-increment:s;position:relative;padding:1.3mm 0 1.3mm 9mm;border-bottom:1px dashed #cfd6c5;font-size:9.6pt}
+.steps li:before{content:counter(s);position:absolute;left:0;top:1.3mm;width:6.5mm;height:6.5mm;border-radius:50%;background:#2f3d27;color:#fff;font-weight:700;text-align:center;line-height:6.5mm;font-size:9pt}
+.steps b{color:#2f3d27}
+.blank{font-size:10.5pt;margin:2.5mm 0 0}.blank span{display:inline-block;border-bottom:1px dotted #333;width:70mm;height:5mm;vertical-align:bottom}.blank span.s{width:18mm}
+.cols{column-count:2;column-gap:5mm;margin-top:3mm;flex:1}
+h3{font-size:10pt;margin:1.8mm 0 0.8mm;padding:0.7mm 2mm;background:#e7ecdf;border-left:3px solid #2f3d27;break-after:avoid}
+ul{margin:0 0 1mm;padding-left:4.5mm}li{margin:0.15mm 0}
 .box{break-inside:avoid}
-table{border-collapse:collapse;width:100%;font-size:7.9pt;margin:0.5mm 0 1mm;break-inside:avoid}
-td,th{border:1px solid #b9c2ad;padding:0.3mm 1mm;vertical-align:top;text-align:left}th{background:#f1f4ec}
-.k{font-family:"DejaVu Sans Mono",monospace;font-size:8.4pt;background:#f1f4ec;padding:0 1mm;border-radius:1mm}
-.sw{display:inline-block;width:3mm;height:3mm;border-radius:50%;vertical-align:middle;border:0.3mm solid #555}
-.foot{font-size:8pt;color:#6a7364;text-align:center;margin-top:1mm}
-.qr{width:31mm;height:31mm;flex:none}.qr svg{width:100%;height:100%}
+table{border-collapse:collapse;width:100%;font-size:8.1pt;margin:0.5mm 0 1mm;break-inside:avoid}
+td,th{border:1px solid #b9c2ad;padding:0.35mm 1mm;vertical-align:top;text-align:left}th{background:#f1f4ec}
+.k{font-family:"DejaVu Sans Mono",monospace;font-size:8.2pt;background:#f1f4ec;padding:0 1mm;border-radius:1mm;white-space:nowrap}
+.note{background:#fff8e1;border:1px solid #f0d58a;border-radius:2mm;padding:1.2mm 2mm;font-size:8.3pt;break-inside:avoid;margin:1mm 0}
+.pg.cmp{font-size:8pt;padding-top:8mm}.pg.cmp .hero{grid-template-columns:56mm 1fr;margin-top:3mm}.pg.cmp .qr{width:48mm;height:48mm}.pg.cmp .blank{margin-top:1.5mm}.pg.cmp table{font-size:7.6pt}.pg.cmp .steps li{font-size:9pt;padding:1mm 0 1mm 9mm}.pg.cmp h3{margin:1.3mm 0 0.6mm}.pg.cmp .cols{margin-top:2mm}
+.foot{font-size:8pt;color:#6a7364;text-align:center;margin-top:1.5mm;border-top:1px solid #cfd6c5;padding-top:1.2mm}
 @media screen{body{background:#888}.pg{background:#fff;margin:10px auto;box-shadow:0 2px 10px rgba(0,0,0,.3)}.bar{position:sticky;top:0;background:#2f3d27;color:#fff;padding:8px 12px;font-family:sans-serif;display:flex;gap:10px;align-items:center;z-index:2}.bar button{font:inherit;padding:5px 12px}}
 @media print{.bar{display:none}}
 </style><script src="config.js"></script><script src="qr.js"></script></head><body>
-<div class="bar">โปสเตอร์ QR 2 หน้า (A4) · QR สร้างจากที่อยู่เว็บนี้อัตโนมัติ <button onclick="window.print()">พิมพ์ / บันทึก PDF</button></div><div class="pg"><div class="top"><div><h1>ฝึกแผนที่และเข็มทิศ</h1><div class="kind">หน้า 1 · แบบฝึก</div></div><div style="font-size:9pt;color:#4a5544;text-align:right">สแกนด้วยกล้องมือถือ<br>ไม่ต้องสมัคร ไม่ต้องเข้าสู่ระบบ</div></div>
-<div class="blank">นทน.หลักสูตร <span></span> รุ่น <span class="s"></span></div>
-<div class="qrs"><div class="q"><div class="qr" data-href="practice.html"></div><div><span class="tag">ชุดเต็ม</span><h2>แบบฝึก 6 โมดูล</h2><p>ครบทุกบทเรียน ประมาณ 90–120 นาที</p><p class="url" data-href="practice.html" style="font-size:7pt;color:#666;word-break:break-all"></p></div></div><div class="q"><div class="qr" data-href="practice-short.html"></div><div><span class="tag">ชุดย่อ</span><h2>แบบฝึก 30 นาที</h2><p>6 โมดูลแบบย่อ จำนวนข้อน้อยลง</p><p class="url" data-href="practice-short.html" style="font-size:7pt;color:#666;word-break:break-all"></p></div></div></div><div class="cols">
-<div class="box"><h3>เริ่มต้น 4 ขั้น</h3><ol>
-<li>สแกน QR ชุดที่ครูฝึกกำหนด (หรือเปิดหน้าแรกแล้วเลือกชุด) (ชุดเต็ม หรือ ชุดย่อ 30 นาที)</li>
-<li>แท็บ <b>"ผลการฝึก"</b> กรอกยศ ชื่อ-สกุล และเลขที่ กด "บันทึก"</li>
-<li>กรอก<b>รหัสภารกิจ</b>ด้านบน กด "สร้างพื้นที่"</li>
-<li>ฝึกตามแท็บ 1 → 6 ใช้เครื่องและเบราว์เซอร์เดิมตลอด (คะแนนเก็บในเครื่อง)</li></ol></div>
-<div class="box"><h3>หน้าจอ</h3><ul>
-<li><b>แถบบน</b>: รหัสภารกิจ · สร้างพื้นที่ · ☾ โหมดกลางคืน</li>
-<li><b>แถบแท็บ</b>: โมดูล 1–6 · ผลการฝึก · ขอบระวาง (มาตราส่วน พิกัด สัญลักษณ์)</li>
-<li><b>ภาพแผนที่/เข็มทิศ</b> ด้านบน (มือถือ) หรือด้านซ้าย (แท็บเล็ต) · <b>แผ่นงาน</b> โจทย์และช่องตอบ</li></ul></div>
-<div class="box"><h3>6 โมดูล</h3>
-<table><tr><th>โมดูล</th><th>ฝึกอะไร</th><th>เต็ม</th><th>ย่อ</th></tr>
-<tr><td>1 แผนที่และภูมิประเทศ</td><td>เครื่องหมาย เส้นชั้นความสูง ยอดเขา สันเขา คอเขา หุบเขา หน้าผา (เลือกตอบ)</td><td>12 ข้อ</td><td>7 ข้อ</td></tr>
-<tr><td>2 อ่านพิกัด</td><td>อ่านพิกัด 6/8 หลัก · แตะแผนที่ตามพิกัด · อ่านพิกัดภูมิศาสตร์ด้วยช่องวัดค่า</td><td>10</td><td>5</td></tr>
-<tr><td>3 เข็มทิศเลนเซติก</td><td>ส่วนประกอบ · หันตามมุม · ยกขึ้นเล็ง · กลางคืนมี/ไม่มีแสง · ระยะปลอดภัย</td><td>10</td><td>5</td></tr>
-<tr><td>4 มุมภาค-ระยะ</td><td>ขีดเส้น A→B วัดมุมด้วยแผ่นวัดมุม วัดระยะด้วยขอบเข็มทิศ ตอบ มุมภาค · มุมกลับ · ระยะ</td><td>5 โจทย์</td><td>2 โจทย์</td></tr>
-<tr><td>5 เดินทางจำลอง</td><td>กรอกมุมภาค + จำนวนก้าว กด "เดิน" เดินตัดตรงผ่านแม่น้ำ หนอง หน้าผาได้ (ระยะกระจัด) · "ค้นหาจุดตรวจ" เมื่อคิดว่าถึง (รัศมี 50 ม.)</td><td>3 จุด</td><td>2 จุด</td></tr>
-<tr><td>6 หาที่อยู่ตนเอง</td><td>ดูภูเขารอบตัว ระบุยอดบนแผนที่ เล็ง อ่านมุม หามุมกลับ ลากเส้นสกัดกลับ แล้วแตะปักตำแหน่ง 1·2·3 ที่หมาย</td><td>5 ขั้น</td><td>3 ขั้น</td></tr></table>
-<p style="margin:0">ผ่านเกณฑ์ประมาณ 80% ของแต่ละโมดูล ทำซ้ำได้ ระบบเก็บคะแนนดีที่สุด</p></div>
-<div class="box"><h3>ส่งคะแนนให้ครูฝึก</h3><ol>
-<li><b>อัตโนมัติ</b>: คะแนนส่งเข้า Google Sheet ของครูฝึกเองทุกครั้งที่จบโมดูล (ต้องกรอกชื่อในแท็บ "ผลการฝึก" ก่อน)</li>
-<li>ตรวจสถานะในแท็บ <b>"ผลการฝึก"</b> ต้องขึ้น "ส่งคะแนนถึงครูฝึกแล้ว ✓"</li>
-<li>ไม่มีสัญญาณ: ฝึกต่อได้ ระบบเก็บไว้แล้วส่งให้เองเมื่อออนไลน์ หรือกด <b>"ส่งคะแนนตอนนี้"</b></li>
-<li>ระบบเก็บคะแนนดีที่สุดของแต่ละคน ส่งซ้ำได้ไม่เสียคะแนน</li></ol></div>
-<div class="box"><h3>เครื่องมือบนแผนที่</h3>
-<table><tr><th style="width:27%">ปุ่ม/การใช้</th><th>วิธีใช้</th></tr>
-<tr><td>ลากนิ้ว · ถ่างสองนิ้ว · ปุ่ม + − ⛶</td><td>เลื่อนแผนที่ ซูมเข้า-ออก ⛶ = ดูทั้งระวาง</td></tr>
-<tr><td>ขีดเส้นดินสอ</td><td>กดเปิด แล้วแตะค้างจุดเริ่ม ลากไปจุดปลาย ปลายเส้นจะดูดติดจุดสำคัญ เลือกสีจากแถบมุมซ้ายบนของแผนที่ <span class="sw" style="background:#2a2a2a"></span> ดำ <span class="sw" style="background:#d6261c"></span> แดง <span class="sw" style="background:#1f5fbf"></span> น้ำเงิน <span class="sw" style="background:#f2c200"></span> เหลือง <span class="sw" style="background:#1f8a3a"></span> เขียว · "ย้อนเส้น" ลบเส้นล่าสุด · "ลบเส้น" ลบทั้งหมด · กดปุ่มซ้ำเพื่อปิด ก่อนจะเลื่อนแผนที่</td></tr>
-<tr><td>วางขอบเข็มทิศตามเส้น</td><td>วางไม้บรรทัดมาตรา 1:50,000 ทาบเส้นดินสอล่าสุด อ่านระยะเป็นเมตรที่ปลายเส้น</td></tr>
-<tr><td>แผ่นวัดมุม</td><td>แผ่นสี่เหลี่ยม Military Triangle Scale Protractor วางจุดศูนย์กลางที่จุดเริ่ม (ลากย้ายได้) ให้เส้น N-S ขนานเส้นกริดตั้ง อ่านมุมตรงที่เส้นดินสอตัดขอบแผ่น · มุมแผ่นมีช่องวัดค่าพิกัด</td></tr>
-<tr><td>เครื่องหมายทางทหาร</td><td>เลือกฝ่าย <b style="color:#1f5fbf">น้ำเงิน = ฝ่ายเรา</b> (กรอบสี่เหลี่ยม) หรือ <b style="color:#d6261c">แดง = ข้าศึก</b> (กรอบข้าวหลามตัด) แล้วเลือกรูป ทหาร · รถถัง · รถฮัมวี่ · เครื่องบิน · เฮลิคอปเตอร์ แตะแผนที่เพื่อวาง แตะเครื่องหมายเดิมเพื่อลบ · "ลบทั้งหมด" ล้างทุกตัว เครื่องหมายอยู่ต่อแม้เปลี่ยนข้อ</td></tr>
-<tr><td>ปักหมุด</td><td>(เดินทาง) แตะแผนที่ปักตำแหน่งที่คิดว่าอยู่ แล้วกด "ใช้หมุดล่าสุดเป็นตำแหน่งของฉัน"</td></tr>
-</table></div>
-<div class="box"><h3>เข็มทิศเลนเซติก</h3><ul>
-<li><b>มองหน้าปัด</b> = ถือระดับเอว อ่านค่าใต้เส้นขีดดำ · <b>ยกขึ้นเล็ง</b> = มองผ่านช่องเล็งหลัง ให้เส้นเล็งทับที่หมาย อ่านค่าผ่านแว่นขยาย</li>
-<li>หมุนตัว: ลากซ้าย-ขวาบนภาพ หรือกดปุ่ม ◀◀ ◀ ▶ ▶▶ ข้างหน้าปัด</li>
-<li>ตัวเลข<b style="color:#c0392b">แดงด้านใน = องศา</b> · ตัวเลขดำด้านนอก = มิล ×100</li>
-<li>วงแหวนหมุน "คลิก ↺ / ↻" 1 คลิก = 3° · ใช้ตั้งมุมเวลากลางคืน: หมุนทวนเข็ม (มุม ÷ 3) คลิก แล้วหันจนลูกศรพรายน้ำตรงขีดพรายน้ำ</li>
-<li>ปุ่ม "แผนที่ / เข็มทิศ" ด้านบนภาพ สลับมุมมองได้ตลอด</li></ul></div>
-<div class="box"><h3>รูปแบบการกรอกข้อมูล</h3>
-<table><tr><th style="width:30%">ช่อง</th><th>รูปแบบ · ตัวอย่าง</th></tr>
-<tr><td>มุมภาค / มุมภาคกลับ</td><td>องศา 0–359 ทศนิยมได้ <span class="k">245</span> <span class="k">65.5</span> · <b>ชุดนี้มุมกริด = มุมแม่เหล็ก ไม่ต้องบวกหรือลบ G-M</b></td></tr>
-<tr><td>มุมกลับ</td><td>น้อยกว่า 180° บวก 180 · ตั้งแต่ 180° ลบ 180 เช่น 245 → <span class="k">65</span></td></tr>
-<tr><td>พิกัดกริด</td><td>ตัวเลขติดกัน 6 หลัก <span class="k">452229</span> หรือ 8 หลัก <span class="k">45152299</span> (อ่านขวาก่อน แล้วขึ้น)</td></tr>
-<tr><td>พิกัดภูมิศาสตร์</td><td>องศา ลิปดา ฟิลิปดา เว้นวรรค ละติจูด <span class="k">14 16 50</span> ลองจิจูด <span class="k">99 32 05</span></td></tr>
-<tr><td>ระยะ</td><td>เมตร <span class="k">1850</span> (คลาดได้ 5%)</td></tr>
-<tr><td>จำนวนก้าว</td><td>ก้าวมาตรฐาน 140 ก้าว/100 ม. · ก้าว = ระยะ × 140 ÷ 100 เช่น 900 ม. = <span class="k">1260</span></td></tr>
-<tr><td>รหัสภารกิจ</td><td>ตามที่ครูฝึกประกาศ เช่น <span class="k">ALPHA-01</span> แล้วกด "สร้างพื้นที่" ทุกคนได้ระวางเดียวกัน</td></tr>
-</table></div></div><div class="foot"><span class="unitname"></span></div></div><div class="pg"><div class="top"><div><h1>ปฏิบัติการเข็มทิศ</h1><div class="kind">หน้า 2 · เกม</div></div><div style="font-size:9pt;color:#4a5544;text-align:right">สแกนด้วยกล้องมือถือ<br>ไม่ต้องสมัคร ไม่ต้องเข้าสู่ระบบ</div></div>
-<div class="blank">นทน.หลักสูตร <span></span> รุ่น <span class="s"></span></div>
-<div class="qrs"><div class="q"><div class="qr" data-href="game.html"></div><div><span class="tag">ชุดเต็ม</span><h2>เกม 12 ภารกิจ</h2><p>แคมเปญเลื่อนยศ + Score-O 10 ธง</p><p class="url" data-href="game.html" style="font-size:7pt;color:#666;word-break:break-all"></p></div></div><div class="q"><div class="qr" data-href="game-short.html"></div><div><span class="tag">ชุดย่อ</span><h2>เกม 30 นาที</h2><p>7 ภารกิจหลัก + Score-O 6 ธง</p><p class="url" data-href="game-short.html" style="font-size:7pt;color:#666;word-break:break-all"></p></div></div></div><div class="cols">
-<div class="box"><h3>เริ่มต้น</h3><ol>
-<li>สแกน QR ชุดที่ครูฝึกกำหนด (ชุดเต็ม 12 ภารกิจ หรือ ชุดย่อ 7 ภารกิจ 30 นาที)</li>
-<li>แท็บ <b>"ส่งคะแนน/อันดับ"</b> กรอกยศ ชื่อ-สกุล และเลขที่ กด "บันทึก"</li>
-<li>กรอก<b>รหัสภารกิจ</b>ด้านบน กด "สร้างพื้นที่" ทุกคนแข่งบนระวางเดียวกัน</li>
-<li>ปุ่ม 🔊 เปิด/ปิดเสียง · ใช้เครื่องเดิมตลอดเกม</li></ol></div>
-<div class="box"><h3>แท็บในเกม</h3><ul>
-<li><b>แคมเปญ</b>: ภารกิจเรียงตามบทเรียน ผ่านภารกิจหนึ่งจึงปลดล็อกภารกิจถัดไป</li>
-<li><b>Score-O</b>: แข่งล่าธงอิสระ เลือกลำดับธงเอง</li>
-<li><b>ส่งคะแนน/อันดับ</b>: ชื่อ เลขที่ ปุ่มส่งคะแนน และตารางอันดับ</li>
-<li><b>วิธีเล่น</b>: คู่มือย่อ สัญลักษณ์แผนที่ สูตรลัด</li></ul></div>
-<div class="box"><h3>คะแนน ดาว และยศ</h3><ul>
-<li>แต่ละภารกิจเต็ม 100 · <b>60 = ★ ผ่าน</b> · 80 = ★★ · 95 = ★★★</li>
-<li>ตอบถูกต่อเนื่อง 3 ข้อขึ้นไปได้โบนัสคอมโบ · บางภารกิจจับเวลา เหลือเวลามากได้โบนัส</li>
-<li>ผ่านแต่ละภารกิจเลื่อนยศ เริ่มจาก นักเรียน → พลทหาร → จ่าอากาศ ... → นาวาอากาศโท</li>
-<li>เล่นซ้ำได้ ระบบเก็บคะแนนดีที่สุดของแต่ละภารกิจ</li></ul></div>
-<div class="box"><h3>ภารกิจ</h3>
-<table><tr><th>ภารกิจ</th><th>ทำอะไร</th><th>ย่อ</th></tr>
-<tr><td>ตาเหยี่ยว</td><td>ตอบเครื่องหมาย เส้นชั้นความสูง ลักษณะภูมิประเทศ แข่งเวลา</td><td>✓</td></tr>
-<tr><td>รู้จักเข็มทิศ</td><td>ส่วนประกอบเลนเซติก ระยะปลอดภัย</td><td></td></tr>
-<tr><td>พิกัดสายฟ้า</td><td>อ่านพิกัด 6/8 หลัก แข่งเวลา</td><td>✓</td></tr>
-<tr><td>ลิปดาฟิลิปดา</td><td>อ่านพิกัดภูมิศาสตร์ด้วยช่องวัดค่า</td><td></td></tr>
-<tr><td>ปักธงแม่นเป้า</td><td>แตะแผนที่ตามพิกัด ยิ่งใกล้ยิ่งได้มาก</td><td></td></tr>
-<tr><td>หันให้ตรง</td><td>มองหน้าปัด หันตามมุมภาค</td><td>✓</td></tr>
-<tr><td>ส่องเป้า</td><td>ยกขึ้นเล็ง อ่านมุมที่หมาย</td><td>✓</td></tr>
-<tr><td>ปฏิบัติการกลางคืน</td><td>ตั้งเข็มทิศแบบมี/ไม่มีแสง นับคลิก</td><td></td></tr>
-<tr><td>นักคำนวณ</td><td>คิดมุมภาคกลับเร็ว</td><td></td></tr>
-<tr><td>วัดมุมวัดระยะ</td><td>ขีดเส้น A→B ตอบมุมภาคและระยะ</td><td>✓</td></tr>
-<tr><td>หาที่อยู่ตนเอง</td><td>อ่านภูเขา เล็ง สกัดกลับ (ย่อ 1·2 ที่หมาย · เต็ม 1·2·3)</td><td>✓</td></tr>
-<tr><td>ลาดตระเวน</td><td>นับก้าว เดินตามมุม หา 2 จุดตรวจ</td><td>✓</td></tr></table></div>
-<div class="box"><h3>Score-O ล่าธง</h3><ul>
-<li>ชุดเต็ม 10 ธง เวลา 90 นาที · ชุดย่อ 6 ธง 45 นาที (เวลาในเกม ไม่ใช่เวลาจริง)</li>
-<li>ธงไกลหรืออยู่ในป่าได้แต้มสูงกว่า · เก็บลำดับใดก็ได้แล้วกลับ "เส้นชัย"</li>
-<li>เกินเวลา หัก 2 คะแนน/นาที · ค้นหาผิดที่เสีย 3 นาที · จบนอกเส้นชัย หักครึ่ง</li>
-<li>เดิน: กรอกมุมภาค + จำนวนก้าว กด "เดิน" เดินตัดตรงผ่านสิ่งกีดขวางได้ (ระยะกระจัด) ลุยน้ำใช้เวลามากขึ้น</li></ul></div>
-
-<div class="box"><h3>เครื่องมือบนแผนที่</h3>
-<table><tr><th style="width:27%">ปุ่ม/การใช้</th><th>วิธีใช้</th></tr>
-<tr><td>ลากนิ้ว · ถ่างสองนิ้ว · ปุ่ม + − ⛶</td><td>เลื่อนแผนที่ ซูมเข้า-ออก ⛶ = ดูทั้งระวาง</td></tr>
-<tr><td>ขีดเส้นดินสอ</td><td>กดเปิด แล้วแตะค้างจุดเริ่ม ลากไปจุดปลาย ปลายเส้นจะดูดติดจุดสำคัญ เลือกสีจากแถบมุมซ้ายบนของแผนที่ <span class="sw" style="background:#2a2a2a"></span> ดำ <span class="sw" style="background:#d6261c"></span> แดง <span class="sw" style="background:#1f5fbf"></span> น้ำเงิน <span class="sw" style="background:#f2c200"></span> เหลือง <span class="sw" style="background:#1f8a3a"></span> เขียว · "ย้อนเส้น" ลบเส้นล่าสุด · "ลบเส้น" ลบทั้งหมด · กดปุ่มซ้ำเพื่อปิด ก่อนจะเลื่อนแผนที่</td></tr>
-<tr><td>วางขอบเข็มทิศตามเส้น</td><td>วางไม้บรรทัดมาตรา 1:50,000 ทาบเส้นดินสอล่าสุด อ่านระยะเป็นเมตรที่ปลายเส้น</td></tr>
-<tr><td>แผ่นวัดมุม</td><td>แผ่นสี่เหลี่ยม Military Triangle Scale Protractor วางจุดศูนย์กลางที่จุดเริ่ม (ลากย้ายได้) ให้เส้น N-S ขนานเส้นกริดตั้ง อ่านมุมตรงที่เส้นดินสอตัดขอบแผ่น · มุมแผ่นมีช่องวัดค่าพิกัด</td></tr>
-<tr><td>เครื่องหมายทางทหาร</td><td>เลือกฝ่าย <b style="color:#1f5fbf">น้ำเงิน = ฝ่ายเรา</b> (กรอบสี่เหลี่ยม) หรือ <b style="color:#d6261c">แดง = ข้าศึก</b> (กรอบข้าวหลามตัด) แล้วเลือกรูป ทหาร · รถถัง · รถฮัมวี่ · เครื่องบิน · เฮลิคอปเตอร์ แตะแผนที่เพื่อวาง แตะเครื่องหมายเดิมเพื่อลบ · "ลบทั้งหมด" ล้างทุกตัว เครื่องหมายอยู่ต่อแม้เปลี่ยนข้อ</td></tr>
-<tr><td>ปักหมุด</td><td>(เดินทาง) แตะแผนที่ปักตำแหน่งที่คิดว่าอยู่ แล้วกด "ใช้หมุดล่าสุดเป็นตำแหน่งของฉัน"</td></tr>
-</table></div>
-<div class="box"><h3>เข็มทิศเลนเซติก</h3><ul>
-<li><b>มองหน้าปัด</b> = ถือระดับเอว อ่านค่าใต้เส้นขีดดำ · <b>ยกขึ้นเล็ง</b> = มองผ่านช่องเล็งหลัง ให้เส้นเล็งทับที่หมาย อ่านค่าผ่านแว่นขยาย</li>
-<li>หมุนตัว: ลากซ้าย-ขวาบนภาพ หรือกดปุ่ม ◀◀ ◀ ▶ ▶▶ ข้างหน้าปัด</li>
-<li>ตัวเลข<b style="color:#c0392b">แดงด้านใน = องศา</b> · ตัวเลขดำด้านนอก = มิล ×100</li>
-<li>วงแหวนหมุน "คลิก ↺ / ↻" 1 คลิก = 3° · ใช้ตั้งมุมเวลากลางคืน: หมุนทวนเข็ม (มุม ÷ 3) คลิก แล้วหันจนลูกศรพรายน้ำตรงขีดพรายน้ำ</li>
-<li>ปุ่ม "แผนที่ / เข็มทิศ" ด้านบนภาพ สลับมุมมองได้ตลอด</li></ul></div>
-<div class="box"><h3>รูปแบบการกรอกข้อมูล</h3>
-<table><tr><th style="width:30%">ช่อง</th><th>รูปแบบ · ตัวอย่าง</th></tr>
-<tr><td>มุมภาค / มุมภาคกลับ</td><td>องศา 0–359 ทศนิยมได้ <span class="k">245</span> <span class="k">65.5</span> · <b>ชุดนี้มุมกริด = มุมแม่เหล็ก ไม่ต้องบวกหรือลบ G-M</b></td></tr>
-<tr><td>มุมกลับ</td><td>น้อยกว่า 180° บวก 180 · ตั้งแต่ 180° ลบ 180 เช่น 245 → <span class="k">65</span></td></tr>
-<tr><td>พิกัดกริด</td><td>ตัวเลขติดกัน 6 หลัก <span class="k">452229</span> หรือ 8 หลัก <span class="k">45152299</span> (อ่านขวาก่อน แล้วขึ้น)</td></tr>
-<tr><td>พิกัดภูมิศาสตร์</td><td>องศา ลิปดา ฟิลิปดา เว้นวรรค ละติจูด <span class="k">14 16 50</span> ลองจิจูด <span class="k">99 32 05</span></td></tr>
-<tr><td>ระยะ</td><td>เมตร <span class="k">1850</span> (คลาดได้ 5%)</td></tr>
-<tr><td>จำนวนก้าว</td><td>ก้าวมาตรฐาน 140 ก้าว/100 ม. · ก้าว = ระยะ × 140 ÷ 100 เช่น 900 ม. = <span class="k">1260</span></td></tr>
-<tr><td>รหัสภารกิจ</td><td>ตามที่ครูฝึกประกาศ เช่น <span class="k">ALPHA-01</span> แล้วกด "สร้างพื้นที่" ทุกคนได้ระวางเดียวกัน</td></tr>
-</table></div>
-<div class="box"><h3>ส่งคะแนนให้ครูฝึก</h3><ol>
-<li><b>อัตโนมัติ</b>: ส่งเข้า Google Sheet ของครูฝึกทุกครั้งที่จบภารกิจหรือ Score-O (กรอกชื่อในแท็บ "ส่งคะแนน/อันดับ" ก่อน)</li>
-<li>แท็บ <b>"ส่งคะแนน/อันดับ"</b> แสดงสถานะการส่งและตารางอันดับรวมทั้งรุ่น</li>
-<li>ไม่มีสัญญาณ: ระบบส่งให้เองเมื่อออนไลน์ หรือกด <b>"ส่งคะแนนตอนนี้"</b></li></ol></div></div><div class="foot"><span class="unitname"></span></div></div><script>
-(function(){var C=window.LNAV_CONFIG||{};
-document.querySelectorAll('.unitname').forEach(function(e){e.textContent=C.UNIT||'';});
-document.querySelectorAll('.qr').forEach(function(e){var u=new URL(e.dataset.href,location.href).href;e.innerHTML=qrSVG(u,300);});
-document.querySelectorAll('.url').forEach(function(e){e.textContent=new URL(e.dataset.href,location.href).href;});})();
+<div class="bar">โปสเตอร์ QR 4 หน้า (A4 · หน้าละ 1 ชุด) · QR สร้างจากที่อยู่เว็บนี้อัตโนมัติ <button onclick="window.print()">พิมพ์ / บันทึก PDF</button></div>
+<div id="pages"></div>
+<script>
+(function(){
+var C=window.LNAV_CONFIG||{},q=new URLSearchParams(location.search),BASE=q.get('base')||location.href;
+var abs=function(h){return new URL(h,BASE).href;};
+var STEPS=function(kind){return [
+ '<b>สแกน QR</b> ด้วยกล้องมือถือ (ถ้าสแกนใน LINE ระบบจะเปิดใน Chrome/Safari ให้เอง) ไม่ต้องสมัคร ไม่ต้องเข้าสู่ระบบ',
+ '<b>กรอกรหัสห้อง</b> ที่ครูฝึกประกาศ เช่น <span class="k">A1</span> · ฝึกได้เฉพาะเวลาที่ห้องเปิด (ก่อนเปิดจะนับถอยหลัง หลังปิดจะล็อก)',
+ '<b>กรอกยศ ชื่อ-สกุล และเลขที่</b> ครั้งแรกครั้งเดียว เครื่องจะจำไว้',
+ '<b>แผนที่</b> ครูฝึกกำหนดจากรหัสภารกิจของห้อง (ทุกคนได้ระวางเดียวกัน) ถ้าไม่ได้กำหนด ให้พิมพ์รหัสภารกิจที่ประกาศที่หัวเว็บ แล้วกด "สร้างพื้นที่"',
+ kind==='app'?'<b>ฝึกตามแท็บ 1 → 6</b> คะแนนส่งถึงครูฝึกเองทุกครั้งที่จบโมดูล':'<b>เล่นภารกิจตามลำดับ</b> ผ่านภารกิจหนึ่งจึงปลดล็อกภารกิจถัดไป คะแนนส่งถึงครูฝึกเองทุกครั้งที่จบภารกิจ'];};
+var TOOLS='<div class="box"><h3>เครื่องมือบนแผนที่</h3><table><tr><th style="width:28%">ปุ่ม</th><th>วิธีใช้</th></tr>'+
+ '<tr><td>ลากนิ้ว · ถ่างสองนิ้ว · + − ⛶</td><td>เลื่อน ซูม · ⛶ ดูทั้งระวาง</td></tr>'+
+ '<tr><td>ขีดเส้นดินสอ</td><td>แตะค้างจุดเริ่ม ลากไปจุดปลาย ปลายเส้นดูดติดจุดสำคัญ เลือกสีที่แถบมุมซ้ายบน · <b>ลบเส้นล่าสุด</b> / ลบเส้นทั้งหมด</td></tr>'+
+ '<tr><td>วางขอบเข็มทิศตามเส้น</td><td>ไม้บรรทัด 1:50,000 ทาบเส้นล่าสุด อ่านระยะเป็นเมตร</td></tr>'+
+ '<tr><td>แผ่นวัดมุม + ปุ่มล็อก</td><td>ลากวางจุดศูนย์กลางที่จุดเริ่ม เส้น N-S ขนานเส้นกริดตั้ง อ่านมุมตรงที่เส้นตัดขอบแผ่น · ปุ่มรูปแม่กุญแจข้างปุ่มซูม: <b>ล็อกทั้งหมด · ล็อกแนวตั้ง (เลื่อนได้แค่ซ้าย-ขวา) · ล็อกแนวนอน (เลื่อนได้แค่ขึ้น-ลง)</b> กันแผ่นเลื่อนตอนซูม</td></tr>'+
+ '<tr><td>ปักหมุด + ▲▼◀▶</td><td>แตะแผนที่ปักหมุด แล้วใช้<b>ปุ่มลูกศรมุมซ้ายล่าง</b>เลื่อนหมุดทีละ 2/10/50 ม. ให้แม่น · ลบหมุดล่าสุดได้</td></tr>'+
+ '<tr><td>เส้นเชื่อม SP→หมุด</td><td>ลากเส้น SP → หมุด 1 → หมุด 2 … ตามลำดับ ใช้วัดมุม-ระยะแต่ละขา</td></tr>'+
+ '<tr><td>เครื่องหมายทางทหาร</td><td><b style="color:#1f5fbf">น้ำเงิน = ฝ่ายเรา</b> · <b style="color:#d6261c">แดง = ข้าศึก</b> แตะวาง แตะซ้ำลบ · ลบอันล่าสุด</td></tr></table></div>';
+var COMPASS='<div class="box"><h3>เข็มทิศเลนเซติก</h3><ul>'+
+ '<li><b>มองหน้าปัด</b> ถือระดับเอว อ่านใต้เส้นขีดดำ · <b>ยกขึ้นเล็ง</b> ให้เส้นเล็งทับที่หมาย อ่านผ่านแว่นขยาย</li>'+
+ '<li><b>⤢ เข็มทิศใหญ่</b> ขยายหน้าปัดเต็มจอ เห็นวงแหวนคลิกครบรอบและตัวเลของศาชัด (มือถือเปิดให้เอง)</li>'+
+ '<li><b>◁ ภาพกว้าง / ซูมเข้า ▷</b> ปรับมุมมองให้เห็นยอดเขารอบตัว · ป้ายขอบจอชี้ที่หมายที่อยู่นอกภาพ</li>'+
+ '<li>หมุนตัว: ลากซ้าย-ขวาบนภาพ หรือ ◀◀ ◀ ▶ ▶▶ · ตัวเลข<b style="color:#c0392b">แดง = องศา</b> ดำ = มิล ×100</li>'+
+ '<li>วงแหวน <b>คลิก ↺ / ↻</b> 1 คลิก = 3° · กลางคืน: หมุนทวนเข็ม มุม ÷ 3 คลิก แล้วหันจนลูกศรพรายน้ำทับขีดพรายน้ำ</li></ul></div>';
+var INPUT='<div class="box"><h3>การกรอกและเกณฑ์ผ่าน</h3><table><tr><th style="width:26%">ช่อง</th><th>ตัวอย่าง · ยอมคลาด</th></tr>'+
+ '<tr><td>พิกัดกริด</td><td><span class="k">452229</span> 6 หลัก · <span class="k">45152299</span> 8 หลัก (ขวาก่อน แล้วขึ้น) · 8 หลักคลาดได้ ±2 หลักสุดท้ายทั้งสองแนว (±20 ม.)</td></tr>'+
+ '<tr><td>มุมภาค</td><td>องศา 0–359 <span class="k">245</span> · วัดบนแผนที่ ±3° · อ่านเข็มทิศ ±4° · <b>ชุดนี้มุมกริด = มุมแม่เหล็ก</b></td></tr>'+
+ '<tr><td>มุมกลับ</td><td>น้อยกว่า 180° บวก 180 · ตั้งแต่ 180° ลบ 180 (245 → <span class="k">65</span>)</td></tr>'+
+ '<tr><td>ระยะ</td><td>เมตร <span class="k">1850</span> · คลาดได้ 8% (อย่างน้อย 40 ม.)</td></tr>'+
+ '<tr><td>พิกัดภูมิศาสตร์</td><td>เว้นวรรค <span class="k">14 16 50</span> · <span class="k">99 32 05</span> · ±8″</td></tr>'+
+ '<tr><td>จำนวนก้าว</td><td>140 ก้าว/100 ม. · ก้าว = ระยะ × 140 ÷ 100 (900 ม. = <span class="k">1260</span>) · พบจุดตรวจเมื่อห่างไม่เกิน 100 ม.</td></tr></table>'+
+ '<p style="margin:0.5mm 0;font-size:8.2pt">ทุกข้อเฉลยค่าที่ถูก บอกว่าผิดเพราะอะไรและควรแก้อย่างไร · การเดินมี "วิเคราะห์ทีละขา" ตอนจบ</p></div>';
+var SEND=function(kind){return '<div class="box"><h3>ส่งคะแนน · หลุดแล้วทำต่อได้</h3><ul>'+
+ '<li>คะแนนส่งเข้า Google Sheet ของครูฝึกเอง '+(kind==='app'?'ดูสถานะที่แท็บ "ผลการฝึก"':'ดูสถานะที่แท็บ "ส่งคะแนน/อันดับ"')+' · ไม่มีสัญญาณ ระบบส่งให้เมื่อออนไลน์</li>'+
+ '<li><b>ปัดแอปทิ้ง/เน็ตหลุด</b> สแกนเข้าใหม่ในเบราว์เซอร์เดิม '+(kind==='app'?'กลับมาที่โมดูลเดิม ข้อเดิม คะแนนสะสมเดิม':'ภารกิจที่ผ่านแล้วและยศยังอยู่ครบ')+'</li>'+
+ '<li><b>เปลี่ยนเครื่อง</b> กรอกชื่อและเลขที่ให้ตรงกับเดิม ระบบดึงผลที่เคยส่งกลับมาให้</li>'+
+ '<li>ระบบเก็บคะแนนดีที่สุดของแต่ละคนในแต่ละห้อง ทำซ้ำได้ไม่เสียคะแนน</li></ul></div>';};
+var MODS=function(short){var r=[['1 แผนที่และภูมิประเทศ','เครื่องหมาย เส้นชั้นความสูง ยอด สัน คอ หุบ หน้าผา',short?'7 ข้อ':'12 ข้อ'],
+ ['2 อ่านพิกัด','อ่าน 6/8 หลัก · ปักตามพิกัด · พิกัดภูมิศาสตร์',short?'5':'10'],
+ ['3 เข็มทิศเลนเซติก','ส่วนประกอบ · หันตามมุม · ยกขึ้นเล็ง · กลางคืน',short?'5':'10'],
+ ['4 มุมภาค-ระยะ','ขีดเส้น A→B แผ่นวัดมุม ขอบเข็มทิศ (มุม · มุมกลับ · ระยะ)',short?'2 โจทย์':'5 โจทย์'],
+ ['5 เดินทางจำลอง','มุม + จำนวนก้าว · ปักหมุด · สกัดกลับ · ค้นหาจุดตรวจ',short?'2 จุด':'3 จุด'],
+ ['6 หาที่อยู่ตนเอง','ระบุยอดเขา เล็ง มุมกลับ ลากเส้นสกัดกลับ ปักตำแหน่ง',short?'1·2 ที่หมาย':'1·2·3 ที่หมาย']];
+ return '<div class="box"><h3>6 โมดูล</h3><table><tr><th>โมดูล</th><th>ฝึกอะไร</th><th style="width:15%">จำนวน</th></tr>'+r.map(function(x){return '<tr><td><b>'+x[0]+'</b></td><td>'+x[1]+'</td><td>'+x[2]+'</td></tr>';}).join('')+
+ '</table><p style="margin:0.5mm 0;font-size:8.2pt">ผ่านเกณฑ์ราว 80% ของแต่ละโมดูล · ไม่ผ่าน กด <b>"ฝึกซ่อมเฉพาะข้อที่ผิด"</b> ได้โจทย์ใหม่เฉพาะจำนวนข้อที่ผิด ไม่ต้องทำใหม่ทั้งหมด</p></div>';};
+var LV=[['L1','ตาเหยี่ยว','เครื่องหมาย เส้นชั้นความสูง ภูมิประเทศ'],['L9','รู้จักเข็มทิศ','ส่วนประกอบเลนเซติก ข้อระวัง'],['L2','พิกัดสายฟ้า','อ่านพิกัด 6/8 หลัก แข่งเวลา'],['L10','ลิปดาฟิลิปดา','พิกัดภูมิศาสตร์ด้วยช่องวัดค่า'],['L3','ปักธงแม่นเป้า','ปักธงตามพิกัด (เลื่อนธงด้วยลูกศรได้)'],['L4','หันให้ตรง','มองหน้าปัด หันตามมุมภาค'],['L5','ส่องเป้า','ยกขึ้นเล็ง อ่านมุมที่หมาย'],['L11','ปฏิบัติการกลางคืน','ตั้งเข็มทิศมี/ไม่มีแสง นับคลิก'],['L6','นักคำนวณ','มุมภาคกลับเร็ว'],['L7','วัดมุมวัดระยะ','ขีดเส้น A→B ตอบมุมและระยะ'],['L12','หาที่อยู่ตนเอง','อ่านภูเขา เล็ง สกัดกลับ'],['L8','ลาดตระเวน','นับก้าว เดินตามมุม หา 2 จุดตรวจ']];
+var SHORT=['L1','L2','L4','L5','L7','L12','L8'];
+var LEVELS=function(short){var l=LV.filter(function(x){return !short||SHORT.indexOf(x[0])>=0;});
+ return '<div class="box"><h3>'+l.length+' ภารกิจ (เรียงตามลำดับเล่น)</h3><table><tr><th style="width:6%">#</th><th style="width:30%">ภารกิจ</th><th>ทำอะไร</th></tr>'+l.map(function(x,i){return '<tr><td>'+(i+1)+'</td><td><b>'+x[1]+'</b></td><td>'+x[2]+'</td></tr>';}).join('')+'</table>'+
+ '<p style="margin:0.5mm 0;font-size:8.2pt">ภารกิจละ 100 · ได้ 60 = ★ ผ่าน · 80 = ★★ · 95 = ★★★ · ผ่านแต่ละภารกิจเลื่อนยศ จาก นักเรียน ขึ้นไปทีละขั้น · ตอบถูกติดกัน 3 ข้อได้โบนัส</p></div>'+
+ '<div class="box"><h3>Score-O ล่าธง</h3><ul><li>'+(short?'6 ธง เวลา 45 นาที':'10 ธง เวลา 90 นาที')+' (เวลาในเกม) เก็บลำดับไหนก็ได้ แล้วกลับเส้นชัย</li><li>เกินเวลาหัก 2 คะแนน/นาที · ค้นหาผิดที่เสีย 3 นาที · จบนอกเส้นชัยหักครึ่ง</li><li>ทุกคนที่ใช้รหัสภารกิจเดียวกันได้ธงชุดเดียวกัน แข่งบนตารางอันดับของห้อง</li></ul></div>';};
+var SETS=[
+ {href:'practice.html',kind:'app',short:false,title:'ฝึกแผนที่และเข็มทิศ',tag:'แบบฝึก · ชุดเต็ม',sub:'6 โมดูล ครบทุกบทเรียน · ประมาณ 90–120 นาที'},
+ {href:'practice-short.html',kind:'app',short:true,title:'ฝึกแผนที่และเข็มทิศ',tag:'แบบฝึก · ชุดย่อ 30 นาที',sub:'6 โมดูลแบบย่อ จำนวนข้อน้อยลง'},
+ {href:'game.html',kind:'game',short:false,title:'ปฏิบัติการเข็มทิศ',tag:'เกม · ชุดเต็ม',sub:'แคมเปญ 12 ภารกิจเลื่อนยศ + Score-O 10 ธง'},
+ {href:'game-short.html',kind:'game',short:true,title:'ปฏิบัติการเข็มทิศ',tag:'เกม · ชุดย่อ 30 นาที',sub:'7 ภารกิจหลัก + Score-O 6 ธง'}];
+var out=SETS.map(function(s,i){var u=abs(s.href);
+ return '<div class="pg'+(s.kind==='game'&&!s.short?' cmp':'')+'"><div class="band'+(s.kind==='game'?' game':'')+'"><div><h1>'+s.title+'</h1><div class="sub">'+s.sub+'</div></div><span class="pill">'+s.tag+'</span></div>'+
+ '<div class="hero"><div class="qrbox"><div class="qr">'+qrSVG(u,300)+'</div><div class="scan">สแกนด้วยกล้องมือถือ</div><div class="url">'+u+'</div></div>'+
+ '<div><ol class="steps">'+STEPS(s.kind).map(function(x){return '<li>'+x+'</li>';}).join('')+'</ol>'+
+ '<div class="blank">หลักสูตร <span></span> รุ่น <span class="s"></span></div><div class="blank">รหัสห้อง <span class="s"></span> &nbsp; รหัสภารกิจ (แผนที่) <span style="width:38mm"></span></div></div></div>'+
+ '<div class="cols">'+(s.kind==='app'?MODS(s.short):LEVELS(s.short))+TOOLS+COMPASS+INPUT+SEND(s.kind)+
+ '<div class="note"><b>ข้อควรรู้</b> ใช้เครื่องและเบราว์เซอร์เดิมตลอดการฝึก · เพิ่มลงหน้าจอหลักได้ (Android ⋮ → เพิ่มลงในหน้าจอหลัก · iPhone แชร์ → เพิ่มไปยังหน้าจอโฮม) · ชุดเต็มและชุดย่อเก็บคะแนนแยกกัน</div></div>'+
+ '<div class="foot">'+(C.UNIT||'')+' · หน้า '+(i+1)+'/4</div></div>';}).join('');
+document.getElementById('pages').innerHTML=out;
+})();
 </script></body></html>

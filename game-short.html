@@ -156,7 +156,7 @@ tr.me td{background:var(--accent-soft)}
 @media (max-width:600px){.mappal{gap:4px;padding:4px 6px;max-width:calc(100% - 64px)}.mappal .ub{width:32px;height:32px}.mappal .ub canvas{width:28px!important;height:28px!important}.mappal .sw{width:22px;height:22px}.mappal .phint{display:none}}
 .stagebar .plock[aria-pressed="true"]{background:#2f3d27;color:#fff;border-color:#2f3d27}
 @media (max-width:899px){#comp{grid-template-rows:48% 52%}}
-[hidden]{display:none!important}body{margin:0}.homebtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;border:1px solid var(--line);text-decoration:none;color:inherit;margin-right:6px;flex:none}</style>
+@media (max-width:899px){body.comp-on .sheet{max-height:31vh!important;max-height:31dvh!important}body.comp-big .sheet{max-height:22vh!important;max-height:22dvh!important}body.comp-big{grid-template-rows:auto minmax(0,1fr) auto!important}body.comp-big header.top{display:none!important}}#comp{bottom:56px!important}.turnbar{bottom:0!important;padding:8px 12px!important;background:#11140f;align-items:center}.turnbar .btn{min-height:40px}#turnhint{bottom:16px!important;max-width:38%!important;font-size:11px}.compbar #cbig[aria-pressed="true"]{background:#4b6a2e;color:#fff}[hidden]{display:none!important}body{margin:0}.homebtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;border:1px solid var(--line);text-decoration:none;color:inherit;margin-right:6px;flex:none}</style>
 <script src="config.js"></script>
 </head>
 <body>
@@ -419,7 +419,7 @@ let O={};          // overlays
 let tapHandler=null;
 function fitZoom(){return Math.min(mapC.clientWidth,mapC.clientHeight)/8600;}
 function sizeCanvas(c){const w=c.clientWidth,h=c.clientHeight;if(!w||!h)return;const W2=Math.round(w*DPR),H2=Math.round(h*DPR);if(c.width!==W2||c.height!==H2){c.width=W2;c.height=H2;}}
-function resize(){DPR=Math.min(window.devicePixelRatio||1,2.5);sizeCanvas(mapC);sizeCanvas(panoC);sizeCanvas(dialC);requestDraw();}
+function resize(){try{const cv=APP.view==='comp';document.body.classList.toggle('comp-on',cv);document.body.classList.toggle('comp-big',cv&&!!C.big);const cp=document.getElementById('comp');if(cp&&cv&&typeof compRows==='function')cp.style.gridTemplateRows=compRows(C.mode);}catch(e){}DPR=Math.min(window.devicePixelRatio||1,2.5);sizeCanvas(mapC);sizeCanvas(panoC);sizeCanvas(dialC);requestDraw();}
 function zMax(){return 1.6;}
 function setView(x,y,z){V.cx=clamp(x,-600,MAP+600);V.cy=clamp(y,-600,MAP+600);if(z)V.z=clamp(z,fitZoom()*0.9,zMax());requestDraw();}
 function fitView(){setView(4000,4000,fitZoom());}
@@ -913,7 +913,7 @@ $('#zout').onclick=()=>setView(V.cx,V.cy,V.z/1.6);
 $('#zfit').onclick=fitView;
 
 /* ---------- lensatic compass (model of the issued compass) ---------- */
-const C={x:0,y:0,h0:0,heading:0,disp:0,vel:0,far:null,near:null,lms:[],mode:'top',lum:0,night:false,hl:null};
+const C={x:0,y:0,h0:0,heading:0,disp:0,vel:0,far:null,near:null,lms:[],mode:'top',lum:0,night:false,hl:null};C.big=(window.innerWidth<700);try{const v=localStorage.getItem('lnav-cbig');if(v)C.big=v==='1';}catch(e){}
 function computePano(x,y){
   const h0=W.elev(x,y)+1.7,far=new Float32Array(720),near=new Float32Array(720);
   for(let k=0;k<720;k++){const a=k*0.5*Math.PI/180,sx=Math.sin(a),sy=Math.cos(a);let mf=-1,mn=-1;
@@ -984,17 +984,17 @@ function drawDial(){
   c.fillStyle=C.night?'#030504':'#141812';c.fillRect(0,0,w,h);
   const D=C.disp,night=C.night;PARTPOS={};
   if(C.mode==='sight'){// view through the magnifying lens of the rear sight
-    const rl=Math.min(w*0.3,h*0.36),lx=w/2,ly=h*0.47;
+    const rl=Math.max(30,Math.min(w*0.38,(h-30)/2.2)),lx=w/2,ly=Math.min(h*0.47,rl*1.08+4);
     c.fillStyle='#0c0d0c';c.beginPath();c.roundRect?c.roundRect(lx-rl*1.45,ly-rl*1.55,rl*2.9,rl*3.0,rl*0.5):c.rect(lx-rl*1.45,ly-rl*1.55,rl*2.9,rl*3.0);c.fill();
     c.save();c.beginPath();c.arc(lx,ly,rl,0,7);c.clip();c.fillStyle=night?'#020403':'#d9d7cf';c.fillRect(lx-rl,ly-rl,rl*2,rl*2);
     const Rb=rl*2.7;c.save();c.translate(lx,ly+Rb*0.74);c.rotate(-D*Math.PI/180);drawCard(c,Rb,night);c.restore();
     if(!night){c.strokeStyle='#050505';c.lineWidth=2;c.beginPath();c.moveTo(lx,ly-rl);c.lineTo(lx,ly+rl*0.55);c.stroke();}
     const gl=c.createRadialGradient(lx-rl*0.4,ly-rl*0.5,rl*0.05,lx,ly,rl);gl.addColorStop(0,'rgba(255,255,255,.35)');gl.addColorStop(.5,'rgba(255,255,255,.04)');gl.addColorStop(1,'rgba(0,0,0,.35)');c.fillStyle=gl;c.fillRect(lx-rl,ly-rl,rl*2,rl*2);
     c.restore();c.strokeStyle='#2b2b2b';c.lineWidth=3;c.beginPath();c.arc(lx,ly,rl,0,7);c.stroke();
-    c.fillStyle='#9aa58f';c.font='500 11px "IBM Plex Sans Thai",sans-serif';c.textAlign='center';c.textBaseline='top';c.fillText('มองผ่านช่องแว่นขยาย อ่านมุมใต้เส้นดัชนีสีดำ',lx,Math.min(h-16,ly+rl*1.5));
+    c.fillStyle='#9aa58f';c.font='500 11px "IBM Plex Sans Thai",sans-serif';c.textAlign='center';c.textBaseline='top';if(ly+rl+18<h)c.fillText('มองผ่านแว่นขยาย อ่านมุมใต้เส้นดัชนีสีดำ',lx,Math.min(h-15,ly+rl+6));
     return;}
   // top view: the compass held level in front of the body (body points to the direction faced)
-  const full=!!C.hl,R=full?Math.max(30,Math.min(w*0.3,(h-10)/4.8)):Math.max(40,Math.min(w*0.3,(h-20)/3.1)),cx=w/2,cy=full?R*2.6+4:h*0.55;
+  const full=!!C.hl,zoomD=!full&&!!C.big,R=full?Math.max(30,Math.min(w*0.3,(h-10)/4.8)):zoomD?Math.max(30,Math.min(w/2.5,(h-8)/2.34)):Math.max(30,Math.min(w*0.4,(h-14)/2.42)),cx=w/2,cy=full?R*2.6+4:zoomD?h/2:h/2+R*0.04;
   const OL='#4b5a35',OLd='#36422a';
   // cover (opened flat beyond the dial) with sighting wire and luminous dots
   c.fillStyle=night?'#050705':OL;c.beginPath();c.roundRect?c.roundRect(cx-R*0.82,cy-R*2.55,R*1.64,R*1.35,R*0.25):c.rect(cx-R*0.82,cy-R*2.55,R*1.64,R*1.35);c.fill();
@@ -1036,13 +1036,16 @@ const endCT=()=>{CT=null;};comp.addEventListener('pointerup',endCT);comp.addEven
 const turn=d=>{C.heading=wrap360(C.heading+d);requestDraw();};
 $('#tl2').onclick=()=>turn(-10);$('#tl1').onclick=()=>turn(-0.5);$('#tr1').onclick=()=>turn(0.5);$('#tr2').onclick=()=>turn(10);
 ['tl2','tl1','tr1','tr2','cmSight','cmTop','bzL','bzR'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('pointerdown',e=>e.stopPropagation());});
-function setCompMode(m){C.mode=m;const cp=$('#comp');if(cp)cp.style.gridTemplateRows=m==='top'?'44% 56%':'58% 42%';setTimeout(resize,0);const a=$('#cmSight'),b=$('#cmTop');if(a)a.setAttribute('aria-pressed',m==='sight');if(b)b.setAttribute('aria-pressed',m==='top');const z=$('#bzbar');if(z)z.hidden=m!=='top';requestDraw();}
+function compRows(m){const cp=$('#comp'),H=cp?cp.clientHeight:600,small=H<460;if(C.big)return m==='top'?'14% 86%':'38% 62%';return m==='top'?(small?'24% 76%':'30% 70%'):(small?'46% 54%':'52% 48%');}
+function setCompMode(m){C.mode=m;const cp=$('#comp');if(cp)cp.style.gridTemplateRows=compRows(m);setTimeout(resize,0);const a=$('#cmSight'),b=$('#cmTop');if(a)a.setAttribute('aria-pressed',m==='sight');if(b)b.setAttribute('aria-pressed',m==='top');const z=$('#bzbar');if(z)z.hidden=m!=='top';requestDraw();}
 (function(){const bar=$('#compbar');if(!bar)return;const d=document.createElement('div');d.className='seg';d.id='fovseg';
-  d.innerHTML='<button id="fovW" aria-label="มุมมองกว้างขึ้น เห็นภูเขารอบตัวมากขึ้น">◁ ภาพกว้าง</button><button id="fovN" aria-label="ซูมเข้า เห็นยอดเขาชัดขึ้น">ซูมเข้า ▷</button>';
+  d.innerHTML='<button id="cbig" aria-pressed="'+(!!C.big)+'" aria-label="ขยายเข็มทิศให้ใหญ่ขึ้น">⤢ เข็มทิศใหญ่</button><button id="fovW" aria-label="มุมมองกว้างขึ้น เห็นภูเขารอบตัวมากขึ้น">◁ ภาพกว้าง</button><button id="fovN" aria-label="ซูมเข้า เห็นยอดเขาชัดขึ้น">ซูมเข้า ▷</button>';
   bar.insertBefore(d,bar.children[1]||null);
   const setF=i=>{FOVI=clamp(i,0,FOVS.length-1);FOV=FOVS[FOVI];$('#fovW').disabled=FOVI===FOVS.length-1;$('#fovN').disabled=FOVI===0;requestDraw();};
+  $('#cbig').onclick=()=>{C.big=!C.big;try{localStorage.setItem('lnav-cbig',C.big?'1':'0');}catch(e){}$('#cbig').setAttribute('aria-pressed',C.big);setCompMode(C.mode);};
   $('#fovW').onclick=()=>setF(FOVI+1);$('#fovN').onclick=()=>setF(FOVI-1);
-  ['fovW','fovN'].forEach(id=>$('#'+id).addEventListener('pointerdown',e=>e.stopPropagation()));setF(FOVI);})();
+  ['fovW','fovN','cbig'].forEach(id=>$('#'+id).addEventListener('pointerdown',e=>e.stopPropagation()));setF(FOVI);})();
+window.addEventListener('resize',()=>{const cp=$('#comp');if(cp&&!cp.hidden)cp.style.gridTemplateRows=compRows(C.mode);});
 $('#cmSight').onclick=()=>setCompMode('sight');$('#cmTop').onclick=()=>setCompMode('top');
 $('#bzL').onclick=()=>{C.lum=wrap360(C.lum-3);clickSnd();requestDraw();};$('#bzR').onclick=()=>{C.lum=wrap360(C.lum+3);clickSnd();requestDraw();};
 function resetCompass(opts){opts=opts||{};C.target=opts.target||null;C.night=!!opts.night;C.labels=opts.labels!==false;C.hl=opts.hl||null;if(opts.lum!=null)C.lum=opts.lum;setCompMode(opts.mode||'top');}
