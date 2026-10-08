@@ -1,6 +1,6 @@
 /* Offline support: pages are fetched from the network first (so updates arrive),
    and served from the cache when there is no signal. Bump VERSION after edits. */
-const VERSION = 'landnav-v1';
+const VERSION = 'landnav-v3';
 const FILES = ['./', 'index.html', 'practice.html', 'practice-short.html', 'game.html', 'game-short.html',
   'poster.html', 'config.js', 'qr.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', e => {

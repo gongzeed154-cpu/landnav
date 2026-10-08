@@ -142,6 +142,8 @@ body.night .stage,body.night #comp{filter:grayscale(1) sepia(1) saturate(6) hue-
 .mappal .ub.on{border:2px solid #1b2117;background:#eef2e6}.mappal .ub canvas{pointer-events:none}
 .mappal .pb{border:1px solid rgba(0,0,0,.2);background:#fff;color:#1b2117;border-radius:7px;padding:4px 8px;font-size:12.5px}
 @media (max-width:600px){.mappal{gap:4px;padding:4px 6px;max-width:calc(100% - 64px)}.mappal .ub{width:32px;height:32px}.mappal .ub canvas{width:28px!important;height:28px!important}.mappal .sw{width:22px;height:22px}.mappal .phint{display:none}}
+.stagebar .plock[aria-pressed="true"]{background:#2f3d27;color:#fff;border-color:#2f3d27}
+@media (max-width:899px){#comp{grid-template-rows:48% 52%}}
 [hidden]{display:none!important}body{margin:0}.homebtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;border:1px solid var(--line);text-decoration:none;color:inherit;margin-right:6px;flex:none}</style>
 <script src="config.js"></script>
 </head>
@@ -192,7 +194,8 @@ body.night .stage,body.night #comp{filter:grayscale(1) sepia(1) saturate(6) hue-
 const CFG={short:true,web:true,form:{url:'',e:{}}};
 /* ================= SHARED CORE: world, map, tools, lensatic compass ================= */
 /* ---------- constants & helpers ---------- */
-const MAP=8000, E0=40000, N0=20000, ZONE='47P PS', MPD=6400/360, FOV=50;
+const MAP=8000, E0=40000, N0=20000, ZONE='47P PS', MPD=6400/360;
+const FOVS=[30,45,60,90];let FOVI=(typeof window!=='undefined'&&window.innerWidth<700)?2:1,FOV=FOVS[FOVI];
 const LAT0=14+15/60, LON0=99+30/60, M_LAT=110600, M_LON=107870; // SW corner of the sheet, metres per degree
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -409,7 +412,7 @@ function zMax(){return 1.6;}
 function setView(x,y,z){V.cx=clamp(x,-600,MAP+600);V.cy=clamp(y,-600,MAP+600);if(z)V.z=clamp(z,fitZoom()*0.9,zMax());requestDraw();}
 function fitView(){setView(4000,4000,fitZoom());}
 let raf=0;function requestDraw(){if(!raf)raf=requestAnimationFrame(frame);}
-function frame(){raf=0;palette();if(APP.view==='map')drawMap();else{const anim=stepCard();drawPano();drawDial();if(anim)requestDraw();}}
+function frame(){raf=0;palette();plateLockUI();if(APP.view==='map')drawMap();else{const anim=stepCard();drawPano();drawDial();if(anim)requestDraw();}}
 let VT={ox:0,oy:0,z:1};
 const S2=(x,y)=>[x*VT.z+VT.ox,-y*VT.z+VT.oy];
 const M2=(sx,sy)=>({x:(sx-VT.ox)/VT.z,y:(VT.oy-sy)/VT.z});
@@ -506,6 +509,8 @@ function drawOverlays(c,w,h){
   if(o.tmpLine)drawPencil(c,o.tmpLine,true);
   if(o.ruler)drawRuler(c,o.ruler.a,o.ruler.b);
   if(o.plate)drawPlate(c,o.plate);
+  if(o.plate&&PLOCK.on){const[p,q]=S2(o.plate.x,o.plate.y);c.save();c.font='600 12px "IBM Plex Sans Thai",sans-serif';const t='ล็อกแผ่นแล้ว';const tw=c.measureText(t).width;
+    c.fillStyle='rgba(47,61,39,.92)';c.beginPath();c.roundRect?c.roundRect(p-tw/2-7,q+14,tw+14,20,6):c.rect(p-tw/2-7,q+14,tw+14,20);c.fill();c.fillStyle='#fff';c.textBaseline='middle';c.textAlign='center';c.fillText(t,p,q+24);c.restore();}
   if(o.marks)for(const m of o.marks)drawMarker(c,m);
   for(const u of UNITS){const[p,q]=S2(u.x,u.y);drawUnit(c,p,q,u.sym,u.side,clamp(30*Math.sqrt(VT.z/0.08),20,40));}
 }
@@ -525,6 +530,15 @@ function drawRuler(c,A,B){
 
 /* ---------- square protractor plate (1:50,000) ---------- */
 const PLATE={H:2500,romer:{x:-440,y:1500},sixty:{x:1870,y:-250,len:1843}};
+/* plate lock: when locked, dragging on the plate pans/zooms the map instead of moving the plate */
+const PLOCK={on:false};let plockBtn=null,plockKey='';
+const LOCK_SVG='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
+const UNLOCK_SVG='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 7V5a3 3 0 0 1 5.6-1.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
+function plateLockUI(){const bar=document.getElementById('zoombar');if(!bar)return;
+  if(!plockBtn){plockBtn=document.createElement('button');plockBtn.className='btn iconbtn plock';plockBtn.id='plock';plockBtn.addEventListener('click',()=>{PLOCK.on=!PLOCK.on;plockKey='';plateLockUI();requestDraw();});bar.appendChild(plockBtn);}
+  const key=[!!O.plate,PLOCK.on].join();if(key===plockKey)return;plockKey=key;
+  plockBtn.hidden=!O.plate;plockBtn.setAttribute('aria-pressed',PLOCK.on);plockBtn.innerHTML=PLOCK.on?LOCK_SVG:UNLOCK_SVG;
+  const t=PLOCK.on?'แผ่นวัดมุมล็อกอยู่ (แตะเพื่อปลดล็อก)':'ล็อกแผ่นวัดมุม ไม่ให้เลื่อนตามนิ้ว';plockBtn.title=t;plockBtn.setAttribute('aria-label',t);}
 const insidePlate=m=>!!O.plate&&Math.abs(m.x-O.plate.x)<=PLATE.H&&Math.abs(m.y-O.plate.y)<=PLATE.H;
 function plateBtns(extra){return`<button class="btn" id="pl" aria-pressed="${!!O.plate}">แผ่นวัดมุม</button>${extra||''}`;}
 function snapPlateView(p){const w=mapC.clientWidth,h=mapC.clientHeight,zz=clamp(Math.min(w-150,h-80)/1150,0.05,1.2);setView(p.x-(w/2-110)/zz,p.y-(h/2-56)/zz,zz);}
@@ -599,10 +613,10 @@ function palette(force){const key=[DRAW.on,PIN.on,DRAW.color,PIN.sym,PIN.side,$(
     PAL.querySelectorAll('.sw').forEach(b=>b.onclick=()=>{DRAW.color=LCOL[b.dataset.c];palette(1);});
     $('#palundo').onclick=()=>{(O.lines||[]).pop();requestDraw();};return;}
   PAL.innerHTML=`<span class="pl">ฝ่าย</span><button class="sw${PIN.side==='b'?' on':''}" data-s="b" style="--c:#1f5fbf" aria-label="ฝ่ายเรา สีน้ำเงิน" title="ฝ่ายเรา (น้ำเงิน)"></button><button class="sw${PIN.side==='r'?' on':''}" data-s="r" style="--c:#d6261c" aria-label="ฝ่ายข้าศึก สีแดง" title="ข้าศึก (แดง)"></button><span class="sep"></span>`
-    +Object.keys(USYM).map(k=>`<button class="ub${PIN.sym===k?' on':''}" data-u="${k}" aria-label="${USYM[k]}" title="${USYM[k]}"></button>`).join('')+'<button class="pb" id="palclr">ลบทั้งหมด</button><span class="pl phint" style="flex-basis:100%">แตะแผนที่เพื่อวาง · แตะเครื่องหมายเดิมเพื่อลบ</span>';
+    +Object.keys(USYM).map(k=>`<button class="ub${PIN.sym===k?' on':''}" data-u="${k}" aria-label="${USYM[k]}" title="${USYM[k]}"></button>`).join('')+'<button class="pb" id="palundo2">ลบอันล่าสุด</button><button class="pb" id="palclr">ลบทั้งหมด</button><span class="pl phint" style="flex-basis:100%">แตะแผนที่เพื่อวาง · แตะเครื่องหมายเดิมเพื่อลบ</span>';
   PAL.querySelectorAll('.ub').forEach(b=>{b.appendChild(unitIcon(b.dataset.u,PIN.side));b.onclick=()=>{PIN.sym=b.dataset.u;palette(1);};});
   PAL.querySelectorAll('.sw').forEach(b=>b.onclick=()=>{PIN.side=b.dataset.s;palette(1);});
-  $('#palclr').onclick=()=>{UNITS.length=0;requestDraw();};}
+  $('#palundo2').onclick=()=>{UNITS.pop();requestDraw();};$('#palclr').onclick=()=>{UNITS.length=0;requestDraw();};}
 function unitTap(m){const r=18/VT.z;const k=UNITS.findIndex(u=>hyp(u.x-m.x,u.y-m.y)<r);if(k>=0)UNITS.splice(k,1);else UNITS.push({x:m.x,y:m.y,sym:PIN.sym,side:PIN.side});requestDraw();}
 
 
@@ -628,11 +642,12 @@ if(CFG.web){window.addEventListener('online',()=>netFlush());setTimeout(()=>{if(
 const DRAW={on:false,color:'#2a2a2a'};
 function snapPt(m){const cand=[];(O.marks||[]).forEach(k=>cand.push(k));(O.lines||[]).forEach(L=>{cand.push(L.a);cand.push(L.b);});(W?W.landmarks:[]).forEach(l=>cand.push(l));
   let best=m,bd=14/VT.z;for(const k of cand){const d=hyp(k.x-m.x,k.y-m.y);if(d<bd){bd=d;best={x:k.x,y:k.y};}}return{x:best.x,y:best.y};}
-function drawBtns(){return`<button class="btn" id="dl" aria-pressed="${DRAW.on}">ขีดเส้นดินสอ</button><button class="btn" id="dr" aria-pressed="${!!O.ruler}">วางขอบเข็มทิศตามเส้น</button><button class="btn" id="dx">ลบเส้น</button><button class="btn" id="du" aria-pressed="${PIN.on}">เครื่องหมายทางทหาร</button>`;}
+function drawBtns(){return`<button class="btn" id="dl" aria-pressed="${DRAW.on}">ขีดเส้นดินสอ</button><button class="btn" id="dr" aria-pressed="${!!O.ruler}">วางขอบเข็มทิศตามเส้น</button><button class="btn" id="dxl">ลบเส้นล่าสุด</button><button class="btn" id="dx">ลบเส้นทั้งหมด</button><button class="btn" id="du" aria-pressed="${PIN.on}">เครื่องหมายทางทหาร</button>`;}
 function bindDraw(){const b=document.getElementById('dl'),u=document.getElementById('du');
   if(b)b.addEventListener('click',()=>{DRAW.on=!DRAW.on;if(DRAW.on){PIN.on=false;if(u)u.setAttribute('aria-pressed',false);}b.setAttribute('aria-pressed',DRAW.on);palette();});
   if(u)u.addEventListener('click',()=>{PIN.on=!PIN.on;if(PIN.on){DRAW.on=false;if(b)b.setAttribute('aria-pressed',false);}u.setAttribute('aria-pressed',PIN.on);palette();});palette();
   const r=document.getElementById('dr');if(r)r.addEventListener('click',()=>{const L=(O.lines||[]).slice(-1)[0];if(O.ruler||!L)O.ruler=null;else O.ruler={a:L.a,b:L.b};r.setAttribute('aria-pressed',!!O.ruler);requestDraw();});
+  const xl=document.getElementById('dxl');if(xl)xl.addEventListener('click',()=>{const L=(O.lines||[]).pop();if(L&&O.ruler&&O.ruler.a===L.a&&O.ruler.b===L.b){O.ruler=null;if(r)r.setAttribute('aria-pressed',false);}requestDraw();});
   const x=document.getElementById('dx');if(x)x.addEventListener('click',()=>{O.lines=[];O.ruler=null;if(r)r.setAttribute('aria-pressed',false);requestDraw();});}
 
 /* ---------- map interaction ---------- */
@@ -641,8 +656,8 @@ function relXY(e){const r=mapC.getBoundingClientRect();return{x:e.clientX-r.left
 mapC.addEventListener('pointerdown',e=>{mapC.setPointerCapture(e.pointerId);const p=relXY(e);ptrs.set(e.pointerId,p);
   if(ptrs.size===1){const m=M2(p.x,p.y);
     if(DRAW.on){const a=snapPt(m);G={type:'draw',sx:p.x,sy:p.y,a,moved:false};}
-    else G=insidePlate(m)?{type:'plate',sx:p.x,sy:p.y,px:O.plate.x,py:O.plate.y,moved:false}:{type:'pan',sx:p.x,sy:p.y,cx:V.cx,cy:V.cy,moved:false};}
-  else if(ptrs.size===2){O.tmpLine=null;const[a,b]=[...ptrs.values()];const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};G={type:'pinch',d:hyp(a.x-b.x,a.y-b.y),z:V.z,anchor:M2(mid.x,mid.y),moved:true};}});
+    else G=insidePlate(m)&&!PLOCK.on?{type:'plate',sx:p.x,sy:p.y,px:O.plate.x,py:O.plate.y,moved:false}:{type:'pan',sx:p.x,sy:p.y,cx:V.cx,cy:V.cy,moved:false};}
+  else if(ptrs.size===2){O.tmpLine=null;if(G&&G.type==='plate'&&O.plate){O.plate.x=G.px;O.plate.y=G.py;}const[a,b]=[...ptrs.values()];const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};G={type:'pinch',d:hyp(a.x-b.x,a.y-b.y),z:V.z,anchor:M2(mid.x,mid.y),moved:true};}});
 mapC.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId)||!G)return;const p=relXY(e);ptrs.set(e.pointerId,p);
   if(G.type==='draw'){if(hyp(p.x-G.sx,p.y-G.sy)>6)G.moved=true;if(G.moved){G.b=snapPt(M2(p.x,p.y));O.tmpLine={a:G.a,b:G.b,color:DRAW.color};requestDraw();}}
   else if(G.type==='plate'){const dx=p.x-G.sx,dy=p.y-G.sy;if(hyp(dx,dy)>6)G.moved=true;if(G.moved&&O.plate){O.plate.x=G.px+dx/V.z;O.plate.y=G.py-dy/V.z;requestDraw();}}
@@ -680,20 +695,31 @@ function stepCard(){const tgt=magHeading();const d=angDiff(tgt,C.disp);C.vel=C.v
 let ACx=null;function clickSnd(){try{ACx=ACx||new(window.AudioContext||window.webkitAudioContext)();const o=ACx.createOscillator(),g=ACx.createGain();o.type='square';o.frequency.value=2400;g.gain.setValueAtTime(0.05,ACx.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,ACx.currentTime+0.03);o.connect(g);g.connect(ACx.destination);o.start();o.stop(ACx.currentTime+0.04);}catch(e){}}
 function drawPano(){
   const c=panoX,w=panoC.clientWidth,h=panoC.clientHeight;if(!w||!C.far)return;c.setTransform(DPR,0,0,DPR,0,0);
-  const ppd=w/FOV,y0=h*0.6;
+  const ppd=w/FOV,y0=h*0.7;
+  // vertical exaggeration so distant hills stand out on small phone screens (azimuths are unchanged)
+  if(C.vexFor!==C.far){let mx=0;for(let k=0;k<C.far.length;k++)if(C.far[k]>mx)mx=C.far[k];C.maxDeg=mx*180/Math.PI;C.vexFor=C.far;}
+  const VEX=clamp((y0*0.75)/(Math.max(C.maxDeg,0.5)*ppd),1,5);
   const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#7fb0d4');g.addColorStop(.6,'#d8e6ec');g.addColorStop(1,'#d8e6ec');c.fillStyle=g;c.fillRect(0,0,w,h);
-  const layer=(arr,col)=>{c.fillStyle=col;c.beginPath();c.moveTo(0,h);for(let px=0;px<=w;px+=2){const az=C.heading+(px-w/2)/ppd;const yy=y0-interpH(arr,az)*180/Math.PI*ppd;c.lineTo(px,yy);}c.lineTo(w,h);c.closePath();c.fill();};
+  const layer=(arr,col)=>{c.fillStyle=col;c.beginPath();c.moveTo(0,h);for(let px=0;px<=w;px+=2){const az=C.heading+(px-w/2)/ppd;const yy=y0-interpH(arr,az)*180/Math.PI*ppd*VEX;c.lineTo(px,yy);}c.lineTo(w,h);c.closePath();c.fill();};
   layer(C.far,'#93a68c');layer(C.near,'#5c7150');
-  for(const L of C.lms){if(!L.vis)continue;const da=angDiff(L.az,C.heading);if(Math.abs(da)>FOV/2+3)continue;const px=w/2+da*ppd,py=y0-L.ang*180/Math.PI*ppd;
+  for(const L of C.lms){if(!L.vis)continue;const da=angDiff(L.az,C.heading);if(Math.abs(da)>FOV/2+3)continue;const px=w/2+da*ppd,py=y0-L.ang*180/Math.PI*ppd*VEX;
     c.save();c.strokeStyle='#1d1d1d';c.fillStyle='#1d1d1d';c.lineWidth=1.4;
     if(L.kind==='tower'){c.beginPath();c.moveTo(px-5,py+22);c.lineTo(px,py);c.lineTo(px+5,py+22);c.stroke();c.fillStyle='#e0332a';c.beginPath();c.arc(px,py,2.4,0,7);c.fill();}
     else if(L.kind==='temple'){c.beginPath();c.moveTo(px-7,py+14);c.lineTo(px,py);c.lineTo(px+7,py+14);c.closePath();c.fillStyle='#f2f0e6';c.fill();c.stroke();}
     else if(C.labels!==false){c.beginPath();c.moveTo(px,py+1);c.lineTo(px,py-12);c.stroke();c.fillStyle='#e0332a';c.beginPath();c.moveTo(px,py-12);c.lineTo(px+8,py-9);c.lineTo(px,py-6);c.fill();}
+    else if(L.kind==='peak'){c.fillStyle='#e0332a';c.strokeStyle='#fff';c.lineWidth=1.2;c.beginPath();c.moveTo(px,py-3);c.lineTo(px+5,py-11);c.lineTo(px-5,py-11);c.closePath();c.fill();c.stroke();}
     if(C.labels===false){c.restore();continue;}
     c.font='600 12px "IBM Plex Sans Thai",sans-serif';c.textAlign='center';c.lineWidth=3;c.strokeStyle='rgba(255,255,255,.85)';const ty=L.kind==='peak'?py-18:py-8;c.strokeText(L.name,px,ty);c.fillStyle='#14180f';c.fillText(L.name,px,ty);c.restore();}
+  if(C.labels!==false&&!C.night){// names of visible landmarks just outside the view, so the trainee knows which way to turn
+    const side={L:[],R:[]};for(const L of C.lms){if(!L.vis)continue;const da=angDiff(L.az,C.heading);if(Math.abs(da)<=FOV/2)continue;const tg=C.target===L.name;if(!tg&&Math.abs(da)>100)continue;(da<0?side.L:side.R).push({L,da:Math.abs(da)-(tg?1000:0),tg});}
+    c.save();c.font='600 12px "IBM Plex Sans Thai",sans-serif';c.textBaseline='middle';const base=h-(C.mode==='sight'?42:22);
+    for(const k of['L','R']){side[k].sort((a,b)=>a.da-b.da).slice(0,C.mode==='sight'?3:1).forEach((o,i)=>{const t=(k==='L'?'◀ ':'')+(o.tg?'หมุนไป ':'')+o.L.name+(k==='R'?' ▶':''),tw=c.measureText(t).width,yy=base-i*22,xx=k==='L'?6:w-tw-16;
+      c.fillStyle=o.tg?'#f2c200':'rgba(255,255,255,.85)';c.fillRect(xx,yy-10,tw+10,20);c.fillStyle='#14180f';c.fillText(t,xx+5,yy);});}
+    c.restore();}
   if(C.night){c.fillStyle='rgba(2,6,12,.86)';c.fillRect(0,0,w,h);}
+  if(!C.night){c.save();c.font='600 11px "IBM Plex Sans Thai",sans-serif';c.textBaseline='top';c.textAlign='left';const t=`มุมมอง ${FOV}°`;c.fillStyle='rgba(20,24,18,.7)';c.fillRect(6,48,c.measureText(t).width+10,18);c.fillStyle='#e8eadf';c.fillText(t,11,51);c.restore();}
   if(C.mode==='sight'){// looking through the rear-sight slot at the front sighting wire
-    const sw=Math.max(44,w*0.14);c.fillStyle=C.labels===false?'rgba(16,18,14,.5)':'rgba(16,18,14,.82)';c.beginPath();c.rect(0,0,w,h);c.roundRect?c.roundRect(w/2-sw/2,-20,sw,h*0.92+20,sw/2):c.rect(w/2-sw/2,0,sw,h*0.92);c.fill('evenodd');
+    const sw=Math.max(72,w*0.3);c.fillStyle=C.labels===false?'rgba(16,18,14,.32)':'rgba(16,18,14,.5)';c.beginPath();c.rect(0,0,w,h);c.roundRect?c.roundRect(w/2-sw/2,-20,sw,h*0.92+20,sw/2):c.rect(w/2-sw/2,0,sw,h*0.92);c.fill('evenodd');
     c.strokeStyle='#0b0b0b';c.lineWidth=2;c.beginPath();c.moveTo(w/2,0);c.lineTo(w/2,h*0.92);c.stroke();
     c.fillStyle=C.night?'#6dffb0':'#9fe8b8';c.shadowColor='#6dffb0';c.shadowBlur=C.night?10:4;for(const dx of[-sw*0.3,sw*0.3]){c.beginPath();c.arc(w/2+dx,h*0.78,2.6,0,7);c.fill();}c.shadowBlur=0;
     c.fillStyle='#9aa58f';c.font='500 11px "IBM Plex Sans Thai",sans-serif';c.textAlign='left';c.textBaseline='top';c.fillText('มองผ่านช่องเล็งหลัง: เส้นเล็ง → ที่หมาย',10,h-18);
@@ -775,10 +801,16 @@ const endCT=()=>{CT=null;};comp.addEventListener('pointerup',endCT);comp.addEven
 const turn=d=>{C.heading=wrap360(C.heading+d);requestDraw();};
 $('#tl2').onclick=()=>turn(-10);$('#tl1').onclick=()=>turn(-0.5);$('#tr1').onclick=()=>turn(0.5);$('#tr2').onclick=()=>turn(10);
 ['tl2','tl1','tr1','tr2','cmSight','cmTop','bzL','bzR'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('pointerdown',e=>e.stopPropagation());});
-function setCompMode(m){C.mode=m;const cp=$('#comp');if(cp)cp.style.gridTemplateRows=m==='top'?'30% 70%':'40% 60%';setTimeout(resize,0);const a=$('#cmSight'),b=$('#cmTop');if(a)a.setAttribute('aria-pressed',m==='sight');if(b)b.setAttribute('aria-pressed',m==='top');const z=$('#bzbar');if(z)z.hidden=m!=='top';requestDraw();}
+function setCompMode(m){C.mode=m;const cp=$('#comp');if(cp)cp.style.gridTemplateRows=m==='top'?'44% 56%':'58% 42%';setTimeout(resize,0);const a=$('#cmSight'),b=$('#cmTop');if(a)a.setAttribute('aria-pressed',m==='sight');if(b)b.setAttribute('aria-pressed',m==='top');const z=$('#bzbar');if(z)z.hidden=m!=='top';requestDraw();}
+(function(){const bar=$('#compbar');if(!bar)return;const d=document.createElement('div');d.className='seg';d.id='fovseg';
+  d.innerHTML='<button id="fovW" aria-label="มุมมองกว้างขึ้น เห็นภูเขารอบตัวมากขึ้น">◁ ภาพกว้าง</button><button id="fovN" aria-label="ซูมเข้า เห็นยอดเขาชัดขึ้น">ซูมเข้า ▷</button>';
+  bar.insertBefore(d,bar.children[1]||null);
+  const setF=i=>{FOVI=clamp(i,0,FOVS.length-1);FOV=FOVS[FOVI];$('#fovW').disabled=FOVI===FOVS.length-1;$('#fovN').disabled=FOVI===0;requestDraw();};
+  $('#fovW').onclick=()=>setF(FOVI+1);$('#fovN').onclick=()=>setF(FOVI-1);
+  ['fovW','fovN'].forEach(id=>$('#'+id).addEventListener('pointerdown',e=>e.stopPropagation()));setF(FOVI);})();
 $('#cmSight').onclick=()=>setCompMode('sight');$('#cmTop').onclick=()=>setCompMode('top');
 $('#bzL').onclick=()=>{C.lum=wrap360(C.lum-3);clickSnd();requestDraw();};$('#bzR').onclick=()=>{C.lum=wrap360(C.lum+3);clickSnd();requestDraw();};
-function resetCompass(opts){opts=opts||{};C.night=!!opts.night;C.labels=opts.labels!==false;C.hl=opts.hl||null;if(opts.lum!=null)C.lum=opts.lum;setCompMode(opts.mode||'top');}
+function resetCompass(opts){opts=opts||{};C.target=opts.target||null;C.night=!!opts.night;C.labels=opts.labels!==false;C.hl=opts.hl||null;if(opts.lum!=null)C.lum=opts.lum;setCompMode(opts.mode||'top');}
 
 /* ---------- shared question banks (aligned with the lesson slides) ---------- */
 const TYPES={village:'หมู่บ้าน/อาคาร',temple:'วัด',school:'โรงเรียน',hospital:'โรงพยาบาล/สถานพยาบาล',tower:'เสาส่งวิทยุ',bridge:'สะพาน',spot:'จุดระดับความสูง',river:'แม่น้ำ',stream:'ลำห้วย/คลอง',swamp:'หนองน้ำ/บึง',pond:'บ่อน้ำ',road:'ถนนสายหลัก',road3:'ถนนสายรอง',forest:'ป่าไม้',orchard:'สวน/ไร่',paddy:'นาข้าว'};
@@ -891,13 +923,15 @@ function runFixDrill(o){
     <div class="row"><div class="field" style="flex-basis:100%"><label for="fxl">ที่หมายที่เล็ง (ยอดเขาบนแผนที่)</label><select id="fxl">${lmOpts}</select></div>
       <div class="field"><label for="fxm">มุมภาคแม่เหล็กที่อ่านได้ (องศา)</label><input id="fxm" inputmode="decimal"></div><div class="field"><label for="fxg">มุมภาคกลับ (องศา)</label><input id="fxg" inputmode="decimal"></div><button class="btn" id="fxadd">บันทึกและลากเส้น</button></div>
     <ul class="log">${S.sights.map((s,k)=>`<li>${k+1}. ${esc(W.landmarks[s.k].name)} · อ่าน ${fd(s.m)}° · เส้นกริด ${fd(s.g)}°</li>`).join('')}</ul>
-    <div class="tools"><button class="btn" id="fxobs">สังเกตรอบตัว</button><button class="btn" id="fxclr">ลบการเล็งทั้งหมด</button>${plateBtns()}${drawBtns()}</div>
+    <div class="tools"><button class="btn" id="fxobs">สังเกตรอบตัว</button><button class="btn" id="fxundo" ${S.sights.length?'':'disabled'}>ลบการเล็งล่าสุด</button><button class="btn" id="fxclr">ลบการเล็งทั้งหมด</button><button class="btn" id="fxpinx" ${S.pin?'':'disabled'}>ลบหมุดตำแหน่ง</button>${plateBtns()}${drawBtns()}</div>
     <div class="row"><button class="btn primary" id="fxok" ${S.pin&&S.sights.length>=need?'':'disabled'}>ยืนยันตำแหน่ง (เล็งแล้ว ${S.sights.length}/${need})</button></div><div id="fxr"></div>
     `);
     bindPlate();bindDraw();
     on('fxobs',()=>ui('<b>สังเกตได้:</b> '+observeText(st.p.x,st.p.y).filter(t=>!/ยืนอยู่บนถนน|ริมลำห้วย/.test(t)||st.linear).join(' · ')));
     on('fxadd',()=>{const k=+val('fxl'),m=num('fxm'),g=num('fxg');if(isNaN(m)||isNaN(g))return ui('กรอกมุมที่อ่านได้และมุมกริดสกัดกลับก่อน');const L=W.landmarks[k];S.sights.push({k,m:wrap360(m),g:wrap360(g)});S.rays.push({x:L.x,y:L.y,az:wrap360(g)});requestDraw();ui(`ลากเส้นจาก ${esc(L.name)} ที่มุมกริด ${fd(g)}° แล้ว ${S.sights.length<need?'เล็งที่หมายถัดไป':'แตะแผนที่ปักตำแหน่งของคุณ'}`);});
     on('fxclr',()=>{S.sights.length=0;S.rays.length=0;requestDraw();ui('');});
+    on('fxundo',()=>{const s=S.sights.pop();S.rays.pop();requestDraw();ui(s?`ลบการเล็ง ${esc(W.landmarks[s.k].name)} แล้ว`:'');});
+    on('fxpinx',()=>{S.pin=null;drawMarks();ui('ลบหมุดแล้ว แตะแผนที่เพื่อปักใหม่');});
     on('fxok',submit);};
   function submit(){if(!S.pin||S.sights.length<need)return;tapHandler=null;const err=Math.round(dist(S.pin,st.p));
     const rows=S.sights.map(s=>{const L=W.landmarks[s.k],trueMag=wrap360(gridAz(st.p,L)-W.gmDeg),back=wrap360(gridAz(L,st.p)),vis=(C.lms.find(x=>x.name===L.name)||{}).vis;
@@ -932,14 +966,20 @@ const num=id=>{const s=val(id).replace(/[^\d.\-]/g,'');return s===''?NaN:Number(
 function setStageView(v,showSeg){APP.view=v;$('#map').hidden=v!=='map';$('#comp').hidden=v!=='comp';$('#zoombar').hidden=v!=='map';$('#turnbar').hidden=v!=='comp';$('#turnhint').hidden=v!=='comp';$('#compbar').hidden=v!=='comp';
   $('#viewseg').hidden=!showSeg;$('#vMap').setAttribute('aria-pressed',v==='map');$('#vComp').setAttribute('aria-pressed',v==='comp');resize();}
 $('#vMap').onclick=()=>setStageView('map',true);$('#vComp').onclick=()=>setStageView('comp',true);
-function setModule(m){APP.mod=m;O={};tapHandler=null;DRAW.on=false;resetCompass({mode:'top'});renderTabs();setStageView('map',false);(MOD[m]||MOD.m1).start();requestDraw();}
+function setModule(m){APP.mod=m;if(RETRY&&RETRY.mod!==m)RETRY=null;O={};tapHandler=null;DRAW.on=false;resetCompass({mode:'top'});renderTabs();setStageView('map',false);(MOD[m]||MOD.m1).start();requestDraw();}
 function regen(){const c=($('#code').value||'ALPHA-01').trim().toUpperCase();$('#code').value=c;APP.code=c;try{localStorage.setItem('lnav-code',c);}catch(e){}genWorld(c);fitView();setModule(APP.mod);}
 $('#gen').onclick=regen;$('#code').addEventListener('keydown',e=>{if(e.key==='Enter')regen();});
 $('#night').onclick=()=>{APP.night=!APP.night;document.body.classList.toggle('night',APP.night);$('#night').setAttribute('aria-pressed',APP.night);};
 const progress=(i,n)=>`<div class="prog" aria-hidden="true"><span style="width:${Math.round(i/n*100)}%"></span></div>`;
-function finishCard(title,score,total,passAt,mod,extra){const pass=score>=passAt;rec(mod,score,total,pass);
-  setSheet(`<div class="eyebrow">${esc(title)}</div><div class="score mono">${score}/${total}</div><p>${pass?'<span class="pill pass">ผ่านเกณฑ์</span>':'<span class="pill fail">ยังไม่ผ่าน</span>'} <span class="muted">เกณฑ์ผ่าน ${passAt}/${total}</span></p>${extra||''}<div class="row"><button class="btn primary" id="again">ฝึกอีกครั้ง</button><button class="btn" id="tores">ดูผลการฝึกทั้งหมด</button></div>`);
-  on('again',()=>setModule(mod));on('tores',()=>setModule('res'));}
+let RETRY=null;const takeRetry=mod=>{const r=RETRY&&RETRY.mod===mod?RETRY:null;return r;};
+function finishCard(title,score,total,passAt,mod,extra,wrong){const R=takeRetry(mod);RETRY=null;
+  let note='';if(R){note=`<p class="muted">รอบซ่อม: ทำใหม่ ${R.kinds.length} ข้อ ได้เพิ่ม ${score}/${total} คะแนน · รวมกับที่ได้ไว้ ${R.carry} คะแนน</p>`;score=Math.min(R.total,R.carry+score);total=R.total;passAt=R.passAt;}
+  const pass=score>=passAt;rec(mod,score,total,pass);
+  const fix=!pass&&wrong&&wrong.length?`<button class="btn primary" id="fixwrong">ฝึกซ่อมเฉพาะข้อที่ผิด (${wrong.length} ข้อ · สุ่มโจทย์ใหม่)</button>`:'';
+  extra=note+(extra||'');
+  setSheet(`<div class="eyebrow">${esc(title)}</div><div class="score mono">${score}/${total}</div><p>${pass?'<span class="pill pass">ผ่านเกณฑ์</span>':'<span class="pill fail">ยังไม่ผ่าน</span>'} <span class="muted">เกณฑ์ผ่าน ${passAt}/${total}</span></p>${extra||''}<div class="row">${fix}<button class="btn${fix?'':' primary'}" id="again">${fix?'ทำใหม่ทั้งหมด':'ฝึกอีกครั้ง'}</button><button class="btn" id="tores">ดูผลการฝึกทั้งหมด</button></div>`);
+  on('fixwrong',()=>{RETRY={mod,kinds:wrong,carry:score,total,passAt};setModule(mod);});
+  on('again',()=>{RETRY=null;setModule(mod);});on('tores',()=>setModule('res'));}
 const fb=(ok,msg)=>`<div class="fb ${ok?'good':'bad'}">${ok?'✓ ถูกต้อง':'<strong>✗ ยังไม่ถูก</strong>'}${msg?' — '+msg:''}</div>`;
 const nextBtn=(label)=>`<div class="row"><button class="btn primary" id="nx">${label||'ข้อต่อไป'}</button></div>`;
 function choiceUI(opts,ans,onDone){sheet.querySelectorAll('.choices button').forEach(b=>b.onclick=()=>{const ok=opts[+b.dataset.k]===ans;
@@ -949,22 +989,25 @@ const choicesHTML=opts=>`<div class="choices">${opts.map((o,k)=>`<button data-k=
 const MOD={};
 /* ---------- module 1: map symbols, contours, terrain ---------- */
 MOD.m1={start(){
-  const qs=CFG.short?mapQuestions(3,1,2,1):mapQuestions(5,2,3,2);const st={i:0,score:0};const show=()=>{
-    if(st.i>=qs.length)return finishCard('โมดูล 1 · แผนที่และภูมิประเทศ',st.score,qs.length,PASSAT(qs.length,10),'m1');
+  const R=takeRetry('m1');let qs;
+  if(R){const n=k=>R.kinds.filter(x=>x===k).length;qs=mapQuestions(n('sym'),n('cont'),n('ter'),n('elev'));if(qs.length<R.kinds.length)qs=qs.concat(mapQuestions(R.kinds.length-qs.length,0,0,0));}
+  else qs=CFG.short?mapQuestions(3,1,2,1):mapQuestions(5,2,3,2);
+  const st={i:0,score:0,wrong:[]};const show=()=>{
+    if(st.i>=qs.length)return finishCard('โมดูล 1 · แผนที่และภูมิประเทศ',st.score,qs.length,PASSAT(qs.length,10),'m1','',st.wrong);
     const q=qs[st.i];O={marks:[{x:q.p.x,y:q.p.y,kind:'ring'}]};setView(q.p.x,q.p.y,qZoom(q));
     setSheet(`<div class="eyebrow">โมดูล 1 · ข้อ ${st.i+1}/${qs.length}</div>${progress(st.i,qs.length)}<p class="q">${QTEXT[q.kind]}</p>${choicesHTML(q.opts)}<div id="fbx"></div>
       <details><summary>ทบทวน</summary><ul><li>เครื่องหมายแผนที่ 5 กลุ่ม: การคมนาคม · แหล่งน้ำ · ภูมิประเทศ · พืชพรรณ · สิ่งปลูกสร้าง (ดูที่ "ขอบระวาง")</li><li>เส้นชั้นความสูงหลักหนาทุก 100 ม. มีตัวเลข · เส้นรองบางทุก 20 ม. · เส้นแทรกเป็นเส้นประทุก 10 ม. ในที่ราบ · เส้นคุ้งกระทะมีขีดสั้นชี้เข้าด้านใน</li><li>ยอดเขา: วงปิดสูงขึ้นเข้าหาศูนย์กลาง · สันเขา: รูปตัวยู ชี้ลงที่ต่ำ · คอเขา: ที่ต่ำระหว่างยอดสองยอด · หุบเขา: รูปตัววี ชี้ขึ้นที่สูง · หน้าผา: เส้นชิดกันมาก · ที่ต่ำ: วงปิดมีขีดชี้เข้าใน</li></ul></details>`);
-    choiceUI(q.opts,q.ans,ok=>{if(ok)st.score++;if(q.kind==='ter')setView(q.p.x,q.p.y,0.35);
+    choiceUI(q.opts,q.ans,ok=>{if(ok)st.score++;else st.wrong.push(q.kind);if(q.kind==='ter')setView(q.p.x,q.p.y,0.35);
       $('#fbx').innerHTML=fb(ok,ok?'':`คำตอบคือ ${esc(q.ans)}${q.kind==='elev'?` (ค่าจริง ${Math.round(W.elev(q.p.x,q.p.y))} ม.)`:''}`)+nextBtn();on('nx',()=>{st.i++;show();});});
   };show();}};
 
 /* ---------- module 2: MGRS and geographic coordinates ---------- */
 MOD.m2={start(){
-  const qs=[],NQ=CFG.short?[2,1,1,1]:[3,2,2,3];for(let i=0;i<NQ[0];i++)qs.push({kind:'read',d:6});for(let i=0;i<NQ[1];i++)qs.push({kind:'read',d:8});for(let i=0;i<NQ[2];i++)qs.push({kind:'plot',d:6});for(let i=0;i<NQ[3];i++)qs.push({kind:'geo'});
+  const R2=takeRetry('m2');const qs=R2?R2.kinds.map(k=>({kind:k.kind,d:k.d})):[],NQ=R2?[0,0,0,0]:CFG.short?[2,1,1,1]:[3,2,2,3];for(let i=0;i<NQ[0];i++)qs.push({kind:'read',d:6});for(let i=0;i<NQ[1];i++)qs.push({kind:'read',d:8});for(let i=0;i<NQ[2];i++)qs.push({kind:'plot',d:6});for(let i=0;i<NQ[3];i++)qs.push({kind:'geo'});
   qs.forEach(q=>{for(let k=0;k<100;k++){let x,y;if(q.d===6){x=100*Math.floor(rnd(3,77))+rnd(30,70);y=100*Math.floor(rnd(3,77))+rnd(30,70);}else if(q.d===8){x=10*Math.floor(rnd(30,770))+rnd(3,7);y=10*Math.floor(rnd(30,770))+rnd(3,7);}
     else{x=rnd(500,7300);y=rnd(500,7300);}if(!W.isWater(x,y)){q.p={x,y};break;}}if(!q.p)q.p={x:4050,y:4050};});
-  const st={i:0,score:0};const show=()=>{
-    if(st.i>=qs.length)return finishCard('โมดูล 2 · อ่านพิกัด',st.score,qs.length,PASSAT(qs.length,8),'m2');
+  const st={i:0,score:0,wrong:[]};const W2=q=>st.wrong.push({kind:q.kind,d:q.d});const show=()=>{
+    if(st.i>=qs.length)return finishCard('โมดูล 2 · อ่านพิกัด',st.score,qs.length,PASSAT(qs.length,8),'m2','',st.wrong);
     const q=qs[st.i];tapHandler=null;const head=`<div class="eyebrow">โมดูล 2 · ข้อ ${st.i+1}/${qs.length}</div>${progress(st.i,qs.length)}`;
     if(q.kind==='read'){O={plate:O.plate||null,lines:O.lines||[],marks:[{x:q.p.x,y:q.p.y,kind:'dot'}]};setView(q.p.x,q.p.y,q.d===8?0.9:0.35);
       setSheet(`${head}<p class="q">อ่านพิกัดกริด (MGRS) <b>${q.d} หลัก</b> ของจุดสีแดง</p><p class="muted">เขตกริด <span class="mono">${ZONE}</span> · Read Right Up: อ่านขวาก่อน แล้วขึ้น · พิมพ์เฉพาะตัวเลข</p>
@@ -973,7 +1016,7 @@ MOD.m2={start(){
         <details><summary>วิธีอ่าน</summary><ol><li>อ่านตัวเลขใหญ่ 2 ตัวของเส้นกริดตั้งทางซ้ายของจุด (ขอบบน) = จัตุรัส 1,000 ม.</li><li>วางมุมไม้วัดพิกัดบนแผ่นวัดมุม (จุดแดง) ทับจุด อ่านตัวเลขตรงที่เส้นกริดตัดแขนไม้ = หลัก 100 ม.</li><li>ทำเช่นเดียวกันกับเส้นกริดราบด้านล่างของจุด (ขอบซ้าย)</li><li>8 หลัก: ประมาณต่อจากขีด 100 ม. ให้ละเอียดถึง 10 ม. (ขยายแผนที่)</li></ol></details>`);
       bindPlate({romerAt:()=>q.p});
       const check=()=>{const s=val('ans').replace(/\D/g,'');if(s.length!==q.d){$('#fbx').innerHTML=`<div class="fb bad">พิมพ์ตัวเลขให้ครบ ${q.d} หลัก</div>`;return;}
-        const truth=gridRef(q.p.x,q.p.y,q.d).replace(' ','');const ok=s===truth;if(ok)st.score++;$('#ans').classList.add(ok?'ok':'no');$('#ans').disabled=true;$('#ok').disabled=true;
+        const truth=gridRef(q.p.x,q.p.y,q.d).replace(' ','');const ok=s===truth;if(ok)st.score++;else W2(q);$('#ans').classList.add(ok?'ok':'no');$('#ans').disabled=true;$('#ok').disabled=true;
         $('#fbx').innerHTML=fb(ok,ok?'':`พิกัดที่ถูกคือ <span class="mono">${ZONE} ${gridRef(q.p.x,q.p.y,q.d)}</span>${s.slice(0,q.d/2)===truth.slice(q.d/2)?' (น่าจะอ่านขึ้นก่อนขวา)':''}`)+nextBtn();on('nx',()=>{st.i++;show();});};
       on('ok',check);on('ans',e=>{if(e.key==='Enter')check();},'keydown');
     }else if(q.kind==='plot'){const ref=gridRef(q.p.x,q.p.y,6);O={plate:O.plate||null,marks:[]};fitView();let pin=null;
@@ -981,7 +1024,7 @@ MOD.m2={start(){
       setSheet(`${head}<p class="q">แตะแผนที่ตรงพิกัด <span class="mono">${ZONE} ${ref}</span></p><p class="muted">ขยายแผนที่ให้พอดีก่อนแตะ แตะใหม่ได้จนกว่าจะกดยืนยัน</p>
         <div class="tools">${plateBtns()}</div><div class="row"><button class="btn primary" id="ok" disabled>ยืนยันตำแหน่ง</button></div><div id="fbx"></div>`);bindPlate();
       on('ok',()=>{tapHandler=null;const cx=Math.floor((E0+q.p.x)/100)*100-E0,cy=Math.floor((N0+q.p.y)/100)*100-N0;
-        const ok=pin.x>=cx-20&&pin.x<=cx+120&&pin.y>=cy-20&&pin.y<=cy+120;if(ok)st.score++;O.marks.push({x:cx,y:cy,kind:'sq'});setView(cx+50,cy+50,Math.max(V.z,0.35));
+        const ok=pin.x>=cx-20&&pin.x<=cx+120&&pin.y>=cy-20&&pin.y<=cy+120;if(ok)st.score++;else W2(q);O.marks.push({x:cx,y:cy,kind:'sq'});setView(cx+50,cy+50,Math.max(V.z,0.35));
         $('#ok').disabled=true;$('#fbx').innerHTML=fb(ok,ok?'':`ตำแหน่งที่ถูกคือกรอบสีเขียว (ห่างจากที่แตะ ${Math.round(hyp(pin.x-cx-50,pin.y-cy-50))} ม.)`)+nextBtn();on('nx',()=>{st.i++;show();});});
     }else{const la=latSecAt(q.p.y),lo=lonSecAt(q.p.x);O={plate:O.plate||null,lines:O.lines||[],marks:[{x:q.p.x,y:q.p.y,kind:'dot'}]};setView(q.p.x,q.p.y,0.16);
       setSheet(`${head}<p class="q">อ่านพิกัดภูมิศาสตร์ของจุดสีแดง ถึงหน่วยฟิลิปดา</p><p class="muted">กากบาทบนแผนที่คือจุดตัดละติจูด/ลองจิจูดทุก 1 ลิปดา (ค่ากำกับอยู่ขอบขวาและขอบล่าง) · ยอมคลาดได้ ±6″</p>
@@ -991,7 +1034,7 @@ MOD.m2={start(){
         <details><summary>วิธีอ่าน (ตามบทเรียน)</summary><ol><li>หากากบาทลิปดาที่ล้อมรอบจุด ลากเส้นโยงด้วยดินสอให้เป็นช่อง 1 ลิปดา</li><li>อ่านค่าลิปดาเต็มของเส้นด้านใต้ (ละติจูด) และเส้นด้านตะวันตก (ลองจิจูด) จุด</li><li>วางมุมช่องวัดค่า (จุดน้ำเงิน) ทับจุด อ่านจำนวนฟิลิปดาตรงที่เส้นลิปดาตัดแขนช่องวัดค่า (1 ลิปดา = 60 ฟิลิปดา)</li><li>อ่านแนวเหนือ-ใต้ (ละติจูด) ก่อน แล้วอ่านแนวตะวันออก-ตก (ลองจิจูด)</li></ol></details>`);
       bindPlate({romerAt:()=>q.p});bindDraw();
       on('ok',()=>{const a=parseDMS(val('la')),b=parseDMS(val('lo'));if(isNaN(a)||isNaN(b)){$('#fbx').innerHTML='<div class="fb bad">พิมพ์ให้ครบ องศา ลิปดา ฟิลิปดา เช่น 14 16 50</div>';return;}
-        const ea=Math.round(a-la),eo=Math.round(b-lo),ok=Math.abs(ea)<=6&&Math.abs(eo)<=6;if(ok)st.score++;$('#ok').disabled=true;
+        const ea=Math.round(a-la),eo=Math.round(b-lo),ok=Math.abs(ea)<=6&&Math.abs(eo)<=6;if(ok)st.score++;else W2(q);$('#ok').disabled=true;
         $('#fbx').innerHTML=fb(ok,`พิกัดจริง <span class="mono">${fmtDMS(la,'N')} , ${fmtDMS(lo,'E')}</span> (คลาด ${ea>0?'+':''}${ea}″ / ${eo>0?'+':''}${eo}″)`)+nextBtn();on('nx',()=>{st.i++;show();});});
     }};show();}};
 
@@ -1001,13 +1044,13 @@ MOD.m3={start(){
   O={marks:[{x:sp.x,y:sp.y,kind:'sp',label:'จุดยืน'}]};setView(sp.x,sp.y,0.12);
   setStageView('comp',true);
   const vis=C.lms.filter(l=>l.vis);
-  const kinds=CFG.short?['part','face','read','nlight','caution']:['part','part','face','read','read','nlight','ndark','caution','part','face'];const tasks=kinds.map((k,i)=>({kind:k==='read'&&!vis.length?'face':k,lm:vis.length?vis[i%vis.length]:null}));
-  const st={i:0,score:0};
+  const R3=takeRetry('m3');const kinds=R3?R3.kinds.slice():CFG.short?['part','face','read','nlight','caution']:['part','part','face','read','read','nlight','ndark','caution','part','face'];const tasks=kinds.map((k,i)=>({kind:k==='read'&&!vis.length?'face':k,lm:vis.length?vis[i%vis.length]:null}));
+  const st={i:0,score:0,wrong:[]};
   const help=`<details><summary>ทบทวนการใช้เข็มทิศ</summary><ul><li>"มองหน้าปัด" = ถือแบบไม่ต้องยกขึ้นเล็ง อ่านค่าใต้เส้นขีดดำ · "ยกขึ้นเล็ง" = มองผ่านช่องเล็งหลังให้เส้นเล็งตรงที่หมาย แล้วมองผ่านแว่นขยายอ่านค่า</li><li>ตัวเลขสีแดงด้านในคือองศา ตัวเลขดำด้านนอกคือมิล (×100)</li><li>วงแหวนคลิก: 1 คลิก = 3° (120 คลิกรอบวง)</li><li>เข็มทิศเลนเซติกอ่านได้ถูกต้องใกล้เคียง 2°</li></ul></details>`;
   const show=()=>{
-    if(st.i>=tasks.length){resetCompass({mode:'top'});setStageView('map',false);return finishCard('โมดูล 3 · เข็มทิศเลนเซติก',st.score,tasks.length,PASSAT(tasks.length,8),'m3');}
+    if(st.i>=tasks.length){resetCompass({mode:'top'});setStageView('map',false);return finishCard('โมดูล 3 · เข็มทิศเลนเซติก',st.score,tasks.length,PASSAT(tasks.length,8),'m3','',st.wrong);}
     const t=tasks[st.i];const head=`<div class="eyebrow">โมดูล 3 · งาน ${st.i+1}/${tasks.length}</div>${progress(st.i,tasks.length)}`;
-    const done=(ok,msg)=>{if(ok)st.score++;$('#fbx').innerHTML=fb(ok,msg)+nextBtn('งานต่อไป');on('nx',()=>{st.i++;show();});};
+    const done=(ok,msg)=>{if(ok)st.score++;else st.wrong.push(t.kind);$('#fbx').innerHTML=fb(ok,msg)+nextBtn('งานต่อไป');on('nx',()=>{st.i++;show();});};
     setStageView('comp',true);
     if(t.kind==='part'){const q=partQuestion();resetCompass({mode:'top',hl:q.key});
       setSheet(`${head}<p class="q">ส่วนที่มีวงแดงกะพริบคือส่วนใดของเข็มทิศเลนเซติก?</p>${choicesHTML(q.opts)}<div id="fbx"></div>`);
@@ -1019,7 +1062,7 @@ MOD.m3={start(){
       setSheet(`${head}<p class="q">หันไปตามมุมภาคแม่เหล็ก <span class="mono">${X}°</span></p><p class="muted">หมุนตัวจนค่าใต้เส้นขีดดำเป็น ${X}° แล้วกดยืนยัน (ยอมคลาด ±2°) จะสลับไป "ยกขึ้นเล็ง" เพื่ออ่านผ่านแว่นขยายก็ได้</p>
         <div class="row"><button class="btn primary" id="ok">ยืนยันทิศ</button></div><div id="fbx"></div>${help}`);
       on('ok',()=>{const err=Math.round(angDiff(magHeading(),X)*10)/10;$('#ok').disabled=true;done(Math.abs(err)<=2,`คุณหันไปที่ <span class="mono">${fd(magHeading())}°</span> (คลาด ${err>0?'+':''}${err}°)`);});}
-    else if(t.kind==='read'){resetCompass({mode:'sight'});
+    else if(t.kind==='read'){resetCompass({mode:'sight',target:t.lm.name});
       setSheet(`${head}<p class="q">ยกขึ้นเล็งไปที่ <b>${esc(t.lm.name)}</b> แล้วอ่านมุมภาคแม่เหล็ก</p><p class="muted">ให้เส้นเล็งในช่องเล็งหลังทับที่หมาย แล้วอ่านค่าใต้เส้นดัชนีในแว่นขยาย (ยอมคลาด ±2°)</p>
         <div class="row"><div class="field"><label for="ans">มุมภาคแม่เหล็ก (องศา)</label><input id="ans" inputmode="decimal" autocomplete="off"></div><button class="btn primary" id="ok">ตรวจคำตอบ</button></div><div id="fbx"></div>${help}`);
       const check=()=>{const a=num('ans');if(isNaN(a))return;const truth=wrap360(t.lm.az-W.gmDeg),err=Math.round(angDiff(a,truth)*10)/10;$('#ans').disabled=true;$('#ok').disabled=true;
@@ -1043,9 +1086,9 @@ MOD.m3={start(){
 
 /* ---------- module 4: azimuth & distance with pencil, plate and compass edge ---------- */
 MOD.m4={start(){
-  const qs=[];for(let i=0;i<(CFG.short?2:5);i++){let A,B;for(let k=0;k<100;k++){A=randLand(600);B=randLand(600);const d=dist(A,B);if(d>800&&d<3200)break;}qs.push({A,B});}
-  const st={i:0,score:0};const show=()=>{
-    if(st.i>=qs.length)return finishCard('โมดูล 4 · มุมภาคและระยะ',st.score,qs.length*3,PASSAT(qs.length*3,12),'m4');
+  const R4=takeRetry('m4');const qs=[];for(let i=0;i<(R4?R4.kinds.length:CFG.short?2:5);i++){let A,B;for(let k=0;k<100;k++){A=randLand(600);B=randLand(600);const d=dist(A,B);if(d>800&&d<3200)break;}qs.push({A,B});}
+  const st={i:0,score:0,wrong:[]};const show=()=>{
+    if(st.i>=qs.length)return finishCard('โมดูล 4 · มุมภาคและระยะ',st.score,qs.length*3,PASSAT(qs.length*3,12),'m4','',st.wrong);
     const{A,B}=qs[st.i];const gaz=gridAz(A,B),gm=Math.round(gaz),mm=wrap360(gm-W.gmDeg),bm=wrap360(mm+180),dd=Math.round(dist(A,B));
     O={plate:O.plate?{x:A.x,y:A.y}:null,lines:[],marks:[{x:A.x,y:A.y,kind:'dot',label:'A'},{x:B.x,y:B.y,kind:'dot',label:'B'}]};DRAW.on=false;
     const z=clamp(Math.min(mapC.clientWidth,mapC.clientHeight)*0.7/Math.max(dist(A,B),600),fitZoom(),0.6);setView((A.x+B.x)/2,(A.y+B.y)/2,z);
@@ -1059,7 +1102,7 @@ MOD.m4={start(){
     on('tp',e=>{O.plate=O.plate?null:{x:A.x,y:A.y};e.currentTarget.setAttribute('aria-pressed',!!O.plate);if(O.plate)setView(A.x,A.y,Math.min(mapC.clientWidth,mapC.clientHeight)/5400);requestDraw();});
         on('ok',()=>{const a=[num('a1'),num('a2'),num('a3')];if(a.some(isNaN)){$('#fbx').innerHTML='<div class="fb bad">กรอกให้ครบทั้ง 3 ช่อง</div>';return;}
       const r=[Math.abs(angDiff(a[0],gaz))<=1,Math.abs(angDiff(a[1],wrap360(gaz+180)))<=1,Math.abs(a[2]-dd)<=dd*0.05];
-      r.forEach((ok,k)=>{const el=$('#a'+(k+1));el.classList.add(ok?'ok':'no');el.disabled=true;});const n=r.filter(Boolean).length;st.score+=n;$('#ok').disabled=true;DRAW.on=false;
+      r.forEach((ok,k)=>{const el=$('#a'+(k+1));el.classList.add(ok?'ok':'no');el.disabled=true;});const n=r.filter(Boolean).length;st.score+=n;if(n<3)st.wrong.push('ab');$('#ok').disabled=true;DRAW.on=false;
       $('#fbx').innerHTML=`<div class="fb ${n===3?'good':'bad'}"><strong>${n}/3</strong> · ค่าที่ถูก: มุมภาค <span class="mono">${fd(gm)}°</span> · กลับ <span class="mono">${fd(bm)}°</span> · ระยะ <span class="mono">${dd}</span> ม.</div>${nextBtn('โจทย์ต่อไป')}`;
       O.line={a:A,b:B,color:'#d6261c',dash:[6,4]};O.plate={x:A.x,y:A.y,az:gaz};requestDraw();on('nx',()=>{st.i++;show();});});
   };show();}};
@@ -1068,7 +1111,7 @@ MOD.m4={start(){
 function paceStd(){try{return Number(localStorage.getItem('lnav-pace'))||140;}catch(e){return 140;}}
 MOD.m5={start(){
   let sp=null;for(let i=0;i<60&&!sp;i++){const p=randLand(900);if(W.roadDist(p.x,p.y)<60)sp=p;}sp=sp||randLand(900);
-  const cps=[];let prev=sp;for(let k=0;k<(CFG.short?2:3);k++){let c=null;for(let i=0;i<300;i++){const a=rnd(0,2*Math.PI),d=rnd(800,1400),p={x:prev.x+Math.sin(a)*d,y:prev.y+Math.cos(a)*d};if(landOK(p.x,p.y)&&p.x>500&&p.y>500&&p.x<MAP-500&&p.y<MAP-500&&dist(p,sp)>600){c=p;break;}}c=c||randLand(600);cps.push(c);prev=c;}
+  const R5=takeRetry('m5');RETRY=null;const cps=[];let prev=sp;for(let k=0;k<(R5?R5.kinds.length:CFG.short?2:3);k++){let c=null;for(let i=0;i<300;i++){const a=rnd(0,2*Math.PI),d=rnd(800,1400),p={x:prev.x+Math.sin(a)*d,y:prev.y+Math.cos(a)*d};if(landOK(p.x,p.y)&&p.x>500&&p.y>500&&p.x<MAP-500&&p.y<MAP-500&&dist(p,sp)>600){c=p;break;}}c=c||randLand(600);cps.push(c);prev=c;}
   const trueStride=1+gauss()*0.03;
   const N={tp:{...sp},pp:{...sp},cps,found:0,trueTrack:[{...sp}],plan:[[{...sp}]],pins:[],rays:[],searches:[],time:0,paces:0,actual:0,log:[],pinMode:false,done:false};
   const draw=()=>{const marks=[{x:sp.x,y:sp.y,kind:'sp',label:'SP'}];
@@ -1087,7 +1130,7 @@ MOD.m5={start(){
     <div class="tools"><button class="btn" id="obs">สังเกตรอบตัว</button><button class="btn" id="look">ส่องเข็มทิศ</button><button class="btn" id="find">ค้นหาจุดตรวจ</button><button class="btn" id="pin" aria-pressed="${N.pinMode}">ปักหมุด</button>${plateBtns()}${drawBtns()}</div>
     <h3>หาที่อยู่ของตนเอง (สกัดกลับ)</h3>
     <div class="row"><div class="field" style="flex-basis:100%"><label for="lm">จุดสังเกต</label><select id="lm">${lmOpts()}</select></div><div class="field"><label for="raz">มุมภาคกลับ จากจุดสังเกตมาหาเรา (องศา)</label><input id="raz" inputmode="decimal"></div><button class="btn" id="ray">ลากเส้น</button></div>
-    <div class="tools"><button class="btn" id="rclr">ลบเส้นสกัดกลับ</button><button class="btn" id="usepin" ${N.pins.length?'':'disabled'}>ใช้หมุดล่าสุดเป็นตำแหน่งของฉัน</button><button class="btn" id="end">จบภารกิจ · ดูผล</button></div>
+    <div class="tools"><button class="btn" id="rlast" ${N.rays.length?'':'disabled'}>ลบเส้นสกัดกลับล่าสุด</button><button class="btn" id="rclr">ลบเส้นสกัดกลับทั้งหมด</button><button class="btn" id="pinx" ${N.pins.length?'':'disabled'}>ลบหมุดล่าสุด</button><button class="btn" id="usepin" ${N.pins.length?'':'disabled'}>ใช้หมุดล่าสุดเป็นตำแหน่งของฉัน</button><button class="btn" id="end">จบภารกิจ · ดูผล</button></div>
     <p class="muted mono">เวลาที่ใช้ ${Math.round(N.time)} นาที · นับก้าวรวม ${N.paces} ก้าว</p>
     <ul class="log">${N.log.slice(-6).reverse().map(l=>`<li>${l}</li>`).join('')}</ul>
     <details><summary>เทคนิคจากบทเรียน</summary><ul><li>ก้าวมาตรฐาน: เดินทางราบ 100 ม. 3-5 ครั้งแล้วหาค่าเฉลี่ย (เช่น 140 ก้าว/100 ม.) · ระยะ = จำนวนก้าว × 100 ÷ ก้าวมาตรฐาน</li><li>พื้นที่ลาดชันหรือขรุขระ ก้าวจะสั้นลง ต้องนับก้าวเพิ่ม</li><li>เดินตามมุม: ตั้งมุมใต้เส้นขีดดำ เล็งหาที่หมายในแนวเส้นเล็ง เดินไปที่หมายนั้น ทำซ้ำ</li><li>ชุดนี้เดินตัดผ่านแม่น้ำ หนองน้ำ และหน้าผาได้เป็นเส้นตรง ระยะที่นับคือระยะกระจัด (ระยะตรงบนแผนที่) จึงไม่ต้องเดินอ้อม · มุมภาคกริด = มุมภาคแม่เหล็ก</li><li>สกัดกลับแบบสองที่หมาย: เล็งไปยังที่หมาย 2 จุด หามุมกลับ (มากกว่า 180 ลบ 180 · น้อยกว่า 180 บวก 180) แปลงเป็นกริด ลากเส้น จุดตัดคือตำแหน่งของเรา</li><li>แบบหนึ่งที่หมาย: ถ้าอยู่บนถนนหรือลำน้ำ ใช้เส้นสกัดกลับเส้นเดียวตัดกับแนวถนน/ลำน้ำนั้น</li></ul></details>`);
@@ -1098,6 +1141,8 @@ MOD.m5={start(){
     bindPlate();bindDraw();
     on('ray',()=>{const k=+val('lm'),a=num('raz');if(isNaN(a))return;const L=W.landmarks[k];N.rays.push({x:L.x,y:L.y,az:wrap360(a)});ui(`ลากเส้นจาก ${esc(L.name)} ที่มุมภาคกริด ${fd(a)}°`);});
     on('rclr',()=>{N.rays.length=0;ui('');});
+    on('rlast',()=>{N.rays.pop();ui('ลบเส้นสกัดกลับเส้นล่าสุดแล้ว');});
+    on('pinx',()=>{N.pins.pop();ui(N.pins.length?`เหลือหมุด ${N.pins.length} อัน`:'ลบหมุดหมดแล้ว');});
     on('usepin',()=>{const p=N.pins[N.pins.length-1];N.pp={...p};N.plan.push([{...p}]);N.log.push(`ตั้งตำแหน่งใหม่ที่หมุด ${N.pins.length} (${gridRef(p.x,p.y,8)})`);ui('ตั้งตำแหน่งของคุณที่หมุดล่าสุดแล้ว');});
     on('end',aar);
   };
@@ -1122,29 +1167,30 @@ MOD.m5={start(){
     const marks=[{x:sp.x,y:sp.y,kind:'sp',label:'SP'}];N.cps.forEach((c,k)=>marks.push({x:c.x,y:c.y,kind:'cp',label:'CP'+(k+1),color:k<N.found?'#1f8a3a':'#d6261c'}));
     N.searches.forEach(s=>marks.push({x:s.x,y:s.y,kind:'x',color:s.ok?'#1f8a3a':'#d6261c'}));
     O={marks,tracks:[...N.plan.map(seg=>({pts:seg,color:'#555',dash:[6,5],width:1.8})),{pts:N.trueTrack,color:'#d6261c',width:2.6}]};fitView();
-    const errs=N.searches.filter(s=>!s.ok).length;const NC=N.cps.length,pass=N.found===NC;rec('m5',N.found,NC,pass);
-    setSheet(`<div class="eyebrow">โมดูล 5 · ทบทวนหลังการฝึก (AAR)</div><div class="score mono">${N.found}/${NC} จุด</div>
+    const errs=N.searches.filter(s=>!s.ok).length;const NC=R5?R5.total:N.cps.length,got=R5?Math.min(NC,R5.carry+N.found):N.found,pass=got===NC;rec('m5',got,NC,pass);
+    setSheet(`<div class="eyebrow">โมดูล 5 · ทบทวนหลังการฝึก (AAR)</div><div class="score mono">${got}/${NC} จุด</div>${R5?`<p class="muted">รอบซ่อม: หาเพิ่ม ${N.found}/${N.cps.length} จุด · รวมกับที่หาได้ไว้ ${R5.carry} จุด</p>`:''}
       <p>${pass?'<span class="pill pass">ผ่านเกณฑ์</span>':'<span class="pill fail">ยังไม่ผ่าน</span>'}</p>
-      <table><tr><th>รายการ</th><th>ค่า</th></tr><tr><td>เวลาที่ใช้</td><td class="mono">${Math.round(N.time)} นาที</td></tr><tr><td>นับก้าวรวม / ระยะจริง</td><td class="mono">${N.paces} ก้าว / ${Math.round(N.actual)} ม.</td></tr><tr><td>ค้นหาผิดที่</td><td class="mono">${errs} ครั้ง</td></tr><tr><td>ห่างจาก CP ถัดไปตอนจบ</td><td class="mono">${N.found<NC?Math.round(dist(N.tp,N.cps[N.found]))+' ม.':'—'}</td></tr></table>
+      <table><tr><th>รายการ</th><th>ค่า</th></tr><tr><td>เวลาที่ใช้</td><td class="mono">${Math.round(N.time)} นาที</td></tr><tr><td>นับก้าวรวม / ระยะจริง</td><td class="mono">${N.paces} ก้าว / ${Math.round(N.actual)} ม.</td></tr><tr><td>ค้นหาผิดที่</td><td class="mono">${errs} ครั้ง</td></tr><tr><td>ห่างจาก CP ถัดไปตอนจบ</td><td class="mono">${N.found<N.cps.length?Math.round(dist(N.tp,N.cps[N.found]))+' ม.':'—'}</td></tr></table>
       <p class="muted">เส้นแดง = เส้นทางที่เดินจริง · เส้นประ = เส้นทางที่คิดว่าเดิน · ✕ = จุดที่ค้นหา ใช้ภาพนี้คุยกับคู่ว่าคลาดเคลื่อนตรงไหนและเพราะอะไร</p>
-      <div class="row"><button class="btn primary" id="again">ภารกิจใหม่</button><button class="btn" id="tores">ดูผลการฝึกทั้งหมด</button></div>`);
-    on('again',()=>setModule('m5'));on('tores',()=>setModule('res'));}
+      <div class="row">${pass?'':`<button class="btn primary" id="fixwrong">ฝึกซ่อมเฉพาะจุดที่ยังไม่พบ (${NC-got} จุด · สุ่มเส้นทางใหม่)</button>`}<button class="btn${pass?' primary':''}" id="again">${pass?'ภารกิจใหม่':'ทำใหม่ทั้งหมด'}</button><button class="btn" id="tores">ดูผลการฝึกทั้งหมด</button></div>`);
+    on('fixwrong',()=>{RETRY={mod:'m5',kinds:Array(NC-got).fill('cp'),carry:got,total:NC,passAt:NC};setModule('m5');});
+    on('again',()=>{RETRY=null;setModule('m5');});on('tores',()=>setModule('res'));}
   setView(sp.x,sp.y,0.2);
   ui('');}};
 
 /* ---------- module 6: terrain association and self-location (1, 2, 3 landmarks) ---------- */
 MOD.m6={start(){
-  const st={score:0,step:0};const steps=CFG.short?[{k:'id'},{k:'fix',n:1},{k:'fix',n:2}]:[{k:'id'},{k:'id'},{k:'fix',n:1},{k:'fix',n:2},{k:'fix',n:3}];const total=steps.reduce((a,x)=>a+(x.k==='id'?1:2),0);
+  const R6=takeRetry('m6');const st={score:0,step:0,wrong:[]};const steps=R6?R6.kinds.map(k=>({...k})):CFG.short?[{k:'id'},{k:'fix',n:1},{k:'fix',n:2}]:[{k:'id'},{k:'id'},{k:'fix',n:1},{k:'fix',n:2},{k:'fix',n:3}];const total=steps.reduce((a,x)=>a+(x.k==='id'?1:2),0);
   const next=()=>{st.step++;run();};
-  const run=()=>{if(st.step>=steps.length){resetCompass({mode:'top'});setStageView('map',false);return finishCard('โมดูล 6 · หาที่อยู่ของตนเอง',st.score,total,PASSAT(total,6),'m6');}
+  const run=()=>{if(st.step>=steps.length){resetCompass({mode:'top'});setStageView('map',false);return finishCard('โมดูล 6 · หาที่อยู่ของตนเอง',st.score,total,PASSAT(total,6),'m6','',st.wrong);}
     const s=steps[st.step];const head=`<div class="eyebrow">โมดูล 6 · ขั้น ${st.step+1}/${steps.length}</div>${progress(st.step,steps.length)}`;
     if(s.k==='id'){let sp=null,vis=[];for(let i=0;i<40&&!sp;i++){const p=randLand(700);vis=computePano(p.x,p.y).filter(l=>l.vis&&l.kind==='peak'&&l.d>500&&l.d<5500);if(vis.length>=2)sp=p;}
       if(!sp){next();return;}const L=pick(vis);C.heading=L.az+rnd(-3,3);C.disp=magHeading();C.vel=0;
       O={marks:[{x:sp.x,y:sp.y,kind:'sp',label:'คุณอยู่ที่นี่'}]};setView(sp.x,sp.y,0.07);setStageView('comp',true);resetCompass({mode:'sight',labels:false});
       const ans=L.name,opts=shuffle([ans,...shuffle(W.peaks.map(p=>'ยอด '+Math.round(p.h)).filter(n=>n!==ans)).slice(0,3)]);
       setSheet(`${head}<p class="q">พิจารณาพื้นที่: ภูเขาที่เส้นเล็งชี้อยู่ตอนนี้คือยอดใดบนแผนที่?</p><p class="muted">รู้ตำแหน่งตนเอง (วงม่วงบนแผนที่) · อ่านมุมจากเข็มทิศ แล้วเทียบทิศทาง ระยะ และความสูงกับยอดเขาบนแผนที่ (สลับ "แผนที่/เข็มทิศ" ด้านซ้ายบน)</p>${choicesHTML(opts)}<div id="fbx"></div>`);
-      choiceUI(opts,ans,ok=>{if(ok)st.score++;$('#fbx').innerHTML=fb(ok,ok?'':'คำตอบคือ '+esc(ans)+` (มุมภาค ${fd(L.az-W.gmDeg)}° ระยะ ${(L.d/1000).toFixed(1)} กม.)`)+nextBtn();on('nx',next);});return;}
-    runFixDrill({kind:s.n,title:`โมดูล 6 · ขั้น ${st.step+1}/${steps.length}`,onDone:r=>{const pt=r.err<=100?2:r.err<=250?1:0;st.score+=pt;
+      choiceUI(opts,ans,ok=>{if(ok)st.score++;else st.wrong.push({k:'id'});$('#fbx').innerHTML=fb(ok,ok?'':'คำตอบคือ '+esc(ans)+` (มุมภาค ${fd(L.az-W.gmDeg)}° ระยะ ${(L.d/1000).toFixed(1)} กม.)`)+nextBtn();on('nx',next);});return;}
+    runFixDrill({kind:s.n,title:`โมดูล 6 · ขั้น ${st.step+1}/${steps.length}`,onDone:r=>{const pt=r.err<=100?2:r.err<=250?1:0;st.score+=pt;if(pt<2)st.wrong.push({k:'fix',n:s.n});
       setSheet(`${head}${fb(pt===2,pt===2?'ตำแหน่งแม่นยำ':pt===1?'ใกล้เคียง (เกณฑ์เต็มคือไม่เกิน 100 ม.)':'ยังคลาดมาก ตรวจการระบุยอดเขาและการคำนวณมุมกลับ')}${r.html}${nextBtn('ขั้นต่อไป')}`);on('nx',next);}});};
   run();}};
 

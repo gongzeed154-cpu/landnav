@@ -154,6 +154,8 @@ tr.me td{background:var(--accent-soft)}
 .mappal .ub.on{border:2px solid #1b2117;background:#eef2e6}.mappal .ub canvas{pointer-events:none}
 .mappal .pb{border:1px solid rgba(0,0,0,.2);background:#fff;color:#1b2117;border-radius:7px;padding:4px 8px;font-size:12.5px}
 @media (max-width:600px){.mappal{gap:4px;padding:4px 6px;max-width:calc(100% - 64px)}.mappal .ub{width:32px;height:32px}.mappal .ub canvas{width:28px!important;height:28px!important}.mappal .sw{width:22px;height:22px}.mappal .phint{display:none}}
+.stagebar .plock[aria-pressed="true"]{background:#2f3d27;color:#fff;border-color:#2f3d27}
+@media (max-width:899px){#comp{grid-template-rows:48% 52%}}
 [hidden]{display:none!important}body{margin:0}.homebtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;border:1px solid var(--line);text-decoration:none;color:inherit;margin-right:6px;flex:none}</style>
 <script src="config.js"></script>
 </head>
@@ -204,7 +206,8 @@ tr.me td{background:var(--accent-soft)}
 const CFG={short:false,web:true,form:{url:'',e:{}}};
 /* ================= SHARED CORE: world, map, tools, lensatic compass ================= */
 /* ---------- constants & helpers ---------- */
-const MAP=8000, E0=40000, N0=20000, ZONE='47P PS', MPD=6400/360, FOV=50;
+const MAP=8000, E0=40000, N0=20000, ZONE='47P PS', MPD=6400/360;
+const FOVS=[30,45,60,90];let FOVI=(typeof window!=='undefined'&&window.innerWidth<700)?2:1,FOV=FOVS[FOVI];
 const LAT0=14+15/60, LON0=99+30/60, M_LAT=110600, M_LON=107870; // SW corner of the sheet, metres per degree
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -421,7 +424,7 @@ function zMax(){return 1.6;}
 function setView(x,y,z){V.cx=clamp(x,-600,MAP+600);V.cy=clamp(y,-600,MAP+600);if(z)V.z=clamp(z,fitZoom()*0.9,zMax());requestDraw();}
 function fitView(){setView(4000,4000,fitZoom());}
 let raf=0;function requestDraw(){if(!raf)raf=requestAnimationFrame(frame);}
-function frame(){raf=0;palette();if(APP.view==='map')drawMap();else{const anim=stepCard();drawPano();drawDial();if(anim)requestDraw();}}
+function frame(){raf=0;palette();plateLockUI();if(APP.view==='map')drawMap();else{const anim=stepCard();drawPano();drawDial();if(anim)requestDraw();}}
 let VT={ox:0,oy:0,z:1};
 const S2=(x,y)=>[x*VT.z+VT.ox,-y*VT.z+VT.oy];
 const M2=(sx,sy)=>({x:(sx-VT.ox)/VT.z,y:(VT.oy-sy)/VT.z});
@@ -518,6 +521,8 @@ function drawOverlays(c,w,h){
   if(o.tmpLine)drawPencil(c,o.tmpLine,true);
   if(o.ruler)drawRuler(c,o.ruler.a,o.ruler.b);
   if(o.plate)drawPlate(c,o.plate);
+  if(o.plate&&PLOCK.on){const[p,q]=S2(o.plate.x,o.plate.y);c.save();c.font='600 12px "IBM Plex Sans Thai",sans-serif';const t='ล็อกแผ่นแล้ว';const tw=c.measureText(t).width;
+    c.fillStyle='rgba(47,61,39,.92)';c.beginPath();c.roundRect?c.roundRect(p-tw/2-7,q+14,tw+14,20,6):c.rect(p-tw/2-7,q+14,tw+14,20);c.fill();c.fillStyle='#fff';c.textBaseline='middle';c.textAlign='center';c.fillText(t,p,q+24);c.restore();}
   if(o.marks)for(const m of o.marks)drawMarker(c,m);
   for(const u of UNITS){const[p,q]=S2(u.x,u.y);drawUnit(c,p,q,u.sym,u.side,clamp(30*Math.sqrt(VT.z/0.08),20,40));}
 }
@@ -537,6 +542,15 @@ function drawRuler(c,A,B){
 
 /* ---------- square protractor plate (1:50,000) ---------- */
 const PLATE={H:2500,romer:{x:-440,y:1500},sixty:{x:1870,y:-250,len:1843}};
+/* plate lock: when locked, dragging on the plate pans/zooms the map instead of moving the plate */
+const PLOCK={on:false};let plockBtn=null,plockKey='';
+const LOCK_SVG='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
+const UNLOCK_SVG='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 7V5a3 3 0 0 1 5.6-1.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
+function plateLockUI(){const bar=document.getElementById('zoombar');if(!bar)return;
+  if(!plockBtn){plockBtn=document.createElement('button');plockBtn.className='btn iconbtn plock';plockBtn.id='plock';plockBtn.addEventListener('click',()=>{PLOCK.on=!PLOCK.on;plockKey='';plateLockUI();requestDraw();});bar.appendChild(plockBtn);}
+  const key=[!!O.plate,PLOCK.on].join();if(key===plockKey)return;plockKey=key;
+  plockBtn.hidden=!O.plate;plockBtn.setAttribute('aria-pressed',PLOCK.on);plockBtn.innerHTML=PLOCK.on?LOCK_SVG:UNLOCK_SVG;
+  const t=PLOCK.on?'แผ่นวัดมุมล็อกอยู่ (แตะเพื่อปลดล็อก)':'ล็อกแผ่นวัดมุม ไม่ให้เลื่อนตามนิ้ว';plockBtn.title=t;plockBtn.setAttribute('aria-label',t);}
 const insidePlate=m=>!!O.plate&&Math.abs(m.x-O.plate.x)<=PLATE.H&&Math.abs(m.y-O.plate.y)<=PLATE.H;
 function plateBtns(extra){return`<button class="btn" id="pl" aria-pressed="${!!O.plate}">แผ่นวัดมุม</button>${extra||''}`;}
 function snapPlateView(p){const w=mapC.clientWidth,h=mapC.clientHeight,zz=clamp(Math.min(w-150,h-80)/1150,0.05,1.2);setView(p.x-(w/2-110)/zz,p.y-(h/2-56)/zz,zz);}
@@ -611,10 +625,10 @@ function palette(force){const key=[DRAW.on,PIN.on,DRAW.color,PIN.sym,PIN.side,$(
     PAL.querySelectorAll('.sw').forEach(b=>b.onclick=()=>{DRAW.color=LCOL[b.dataset.c];palette(1);});
     $('#palundo').onclick=()=>{(O.lines||[]).pop();requestDraw();};return;}
   PAL.innerHTML=`<span class="pl">ฝ่าย</span><button class="sw${PIN.side==='b'?' on':''}" data-s="b" style="--c:#1f5fbf" aria-label="ฝ่ายเรา สีน้ำเงิน" title="ฝ่ายเรา (น้ำเงิน)"></button><button class="sw${PIN.side==='r'?' on':''}" data-s="r" style="--c:#d6261c" aria-label="ฝ่ายข้าศึก สีแดง" title="ข้าศึก (แดง)"></button><span class="sep"></span>`
-    +Object.keys(USYM).map(k=>`<button class="ub${PIN.sym===k?' on':''}" data-u="${k}" aria-label="${USYM[k]}" title="${USYM[k]}"></button>`).join('')+'<button class="pb" id="palclr">ลบทั้งหมด</button><span class="pl phint" style="flex-basis:100%">แตะแผนที่เพื่อวาง · แตะเครื่องหมายเดิมเพื่อลบ</span>';
+    +Object.keys(USYM).map(k=>`<button class="ub${PIN.sym===k?' on':''}" data-u="${k}" aria-label="${USYM[k]}" title="${USYM[k]}"></button>`).join('')+'<button class="pb" id="palundo2">ลบอันล่าสุด</button><button class="pb" id="palclr">ลบทั้งหมด</button><span class="pl phint" style="flex-basis:100%">แตะแผนที่เพื่อวาง · แตะเครื่องหมายเดิมเพื่อลบ</span>';
   PAL.querySelectorAll('.ub').forEach(b=>{b.appendChild(unitIcon(b.dataset.u,PIN.side));b.onclick=()=>{PIN.sym=b.dataset.u;palette(1);};});
   PAL.querySelectorAll('.sw').forEach(b=>b.onclick=()=>{PIN.side=b.dataset.s;palette(1);});
-  $('#palclr').onclick=()=>{UNITS.length=0;requestDraw();};}
+  $('#palundo2').onclick=()=>{UNITS.pop();requestDraw();};$('#palclr').onclick=()=>{UNITS.length=0;requestDraw();};}
 function unitTap(m){const r=18/VT.z;const k=UNITS.findIndex(u=>hyp(u.x-m.x,u.y-m.y)<r);if(k>=0)UNITS.splice(k,1);else UNITS.push({x:m.x,y:m.y,sym:PIN.sym,side:PIN.side});requestDraw();}
 
 
@@ -640,11 +654,12 @@ if(CFG.web){window.addEventListener('online',()=>netFlush());setTimeout(()=>{if(
 const DRAW={on:false,color:'#2a2a2a'};
 function snapPt(m){const cand=[];(O.marks||[]).forEach(k=>cand.push(k));(O.lines||[]).forEach(L=>{cand.push(L.a);cand.push(L.b);});(W?W.landmarks:[]).forEach(l=>cand.push(l));
   let best=m,bd=14/VT.z;for(const k of cand){const d=hyp(k.x-m.x,k.y-m.y);if(d<bd){bd=d;best={x:k.x,y:k.y};}}return{x:best.x,y:best.y};}
-function drawBtns(){return`<button class="btn" id="dl" aria-pressed="${DRAW.on}">ขีดเส้นดินสอ</button><button class="btn" id="dr" aria-pressed="${!!O.ruler}">วางขอบเข็มทิศตามเส้น</button><button class="btn" id="dx">ลบเส้น</button><button class="btn" id="du" aria-pressed="${PIN.on}">เครื่องหมายทางทหาร</button>`;}
+function drawBtns(){return`<button class="btn" id="dl" aria-pressed="${DRAW.on}">ขีดเส้นดินสอ</button><button class="btn" id="dr" aria-pressed="${!!O.ruler}">วางขอบเข็มทิศตามเส้น</button><button class="btn" id="dxl">ลบเส้นล่าสุด</button><button class="btn" id="dx">ลบเส้นทั้งหมด</button><button class="btn" id="du" aria-pressed="${PIN.on}">เครื่องหมายทางทหาร</button>`;}
 function bindDraw(){const b=document.getElementById('dl'),u=document.getElementById('du');
   if(b)b.addEventListener('click',()=>{DRAW.on=!DRAW.on;if(DRAW.on){PIN.on=false;if(u)u.setAttribute('aria-pressed',false);}b.setAttribute('aria-pressed',DRAW.on);palette();});
   if(u)u.addEventListener('click',()=>{PIN.on=!PIN.on;if(PIN.on){DRAW.on=false;if(b)b.setAttribute('aria-pressed',false);}u.setAttribute('aria-pressed',PIN.on);palette();});palette();
   const r=document.getElementById('dr');if(r)r.addEventListener('click',()=>{const L=(O.lines||[]).slice(-1)[0];if(O.ruler||!L)O.ruler=null;else O.ruler={a:L.a,b:L.b};r.setAttribute('aria-pressed',!!O.ruler);requestDraw();});
+  const xl=document.getElementById('dxl');if(xl)xl.addEventListener('click',()=>{const L=(O.lines||[]).pop();if(L&&O.ruler&&O.ruler.a===L.a&&O.ruler.b===L.b){O.ruler=null;if(r)r.setAttribute('aria-pressed',false);}requestDraw();});
   const x=document.getElementById('dx');if(x)x.addEventListener('click',()=>{O.lines=[];O.ruler=null;if(r)r.setAttribute('aria-pressed',false);requestDraw();});}
 
 /* ---------- map interaction ---------- */
@@ -653,8 +668,8 @@ function relXY(e){const r=mapC.getBoundingClientRect();return{x:e.clientX-r.left
 mapC.addEventListener('pointerdown',e=>{mapC.setPointerCapture(e.pointerId);const p=relXY(e);ptrs.set(e.pointerId,p);
   if(ptrs.size===1){const m=M2(p.x,p.y);
     if(DRAW.on){const a=snapPt(m);G={type:'draw',sx:p.x,sy:p.y,a,moved:false};}
-    else G=insidePlate(m)?{type:'plate',sx:p.x,sy:p.y,px:O.plate.x,py:O.plate.y,moved:false}:{type:'pan',sx:p.x,sy:p.y,cx:V.cx,cy:V.cy,moved:false};}
-  else if(ptrs.size===2){O.tmpLine=null;const[a,b]=[...ptrs.values()];const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};G={type:'pinch',d:hyp(a.x-b.x,a.y-b.y),z:V.z,anchor:M2(mid.x,mid.y),moved:true};}});
+    else G=insidePlate(m)&&!PLOCK.on?{type:'plate',sx:p.x,sy:p.y,px:O.plate.x,py:O.plate.y,moved:false}:{type:'pan',sx:p.x,sy:p.y,cx:V.cx,cy:V.cy,moved:false};}
+  else if(ptrs.size===2){O.tmpLine=null;if(G&&G.type==='plate'&&O.plate){O.plate.x=G.px;O.plate.y=G.py;}const[a,b]=[...ptrs.values()];const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};G={type:'pinch',d:hyp(a.x-b.x,a.y-b.y),z:V.z,anchor:M2(mid.x,mid.y),moved:true};}});
 mapC.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId)||!G)return;const p=relXY(e);ptrs.set(e.pointerId,p);
   if(G.type==='draw'){if(hyp(p.x-G.sx,p.y-G.sy)>6)G.moved=true;if(G.moved){G.b=snapPt(M2(p.x,p.y));O.tmpLine={a:G.a,b:G.b,color:DRAW.color};requestDraw();}}
   else if(G.type==='plate'){const dx=p.x-G.sx,dy=p.y-G.sy;if(hyp(dx,dy)>6)G.moved=true;if(G.moved&&O.plate){O.plate.x=G.px+dx/V.z;O.plate.y=G.py-dy/V.z;requestDraw();}}
@@ -692,20 +707,31 @@ function stepCard(){const tgt=magHeading();const d=angDiff(tgt,C.disp);C.vel=C.v
 let ACx=null;function clickSnd(){try{ACx=ACx||new(window.AudioContext||window.webkitAudioContext)();const o=ACx.createOscillator(),g=ACx.createGain();o.type='square';o.frequency.value=2400;g.gain.setValueAtTime(0.05,ACx.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,ACx.currentTime+0.03);o.connect(g);g.connect(ACx.destination);o.start();o.stop(ACx.currentTime+0.04);}catch(e){}}
 function drawPano(){
   const c=panoX,w=panoC.clientWidth,h=panoC.clientHeight;if(!w||!C.far)return;c.setTransform(DPR,0,0,DPR,0,0);
-  const ppd=w/FOV,y0=h*0.6;
+  const ppd=w/FOV,y0=h*0.7;
+  // vertical exaggeration so distant hills stand out on small phone screens (azimuths are unchanged)
+  if(C.vexFor!==C.far){let mx=0;for(let k=0;k<C.far.length;k++)if(C.far[k]>mx)mx=C.far[k];C.maxDeg=mx*180/Math.PI;C.vexFor=C.far;}
+  const VEX=clamp((y0*0.75)/(Math.max(C.maxDeg,0.5)*ppd),1,5);
   const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#7fb0d4');g.addColorStop(.6,'#d8e6ec');g.addColorStop(1,'#d8e6ec');c.fillStyle=g;c.fillRect(0,0,w,h);
-  const layer=(arr,col)=>{c.fillStyle=col;c.beginPath();c.moveTo(0,h);for(let px=0;px<=w;px+=2){const az=C.heading+(px-w/2)/ppd;const yy=y0-interpH(arr,az)*180/Math.PI*ppd;c.lineTo(px,yy);}c.lineTo(w,h);c.closePath();c.fill();};
+  const layer=(arr,col)=>{c.fillStyle=col;c.beginPath();c.moveTo(0,h);for(let px=0;px<=w;px+=2){const az=C.heading+(px-w/2)/ppd;const yy=y0-interpH(arr,az)*180/Math.PI*ppd*VEX;c.lineTo(px,yy);}c.lineTo(w,h);c.closePath();c.fill();};
   layer(C.far,'#93a68c');layer(C.near,'#5c7150');
-  for(const L of C.lms){if(!L.vis)continue;const da=angDiff(L.az,C.heading);if(Math.abs(da)>FOV/2+3)continue;const px=w/2+da*ppd,py=y0-L.ang*180/Math.PI*ppd;
+  for(const L of C.lms){if(!L.vis)continue;const da=angDiff(L.az,C.heading);if(Math.abs(da)>FOV/2+3)continue;const px=w/2+da*ppd,py=y0-L.ang*180/Math.PI*ppd*VEX;
     c.save();c.strokeStyle='#1d1d1d';c.fillStyle='#1d1d1d';c.lineWidth=1.4;
     if(L.kind==='tower'){c.beginPath();c.moveTo(px-5,py+22);c.lineTo(px,py);c.lineTo(px+5,py+22);c.stroke();c.fillStyle='#e0332a';c.beginPath();c.arc(px,py,2.4,0,7);c.fill();}
     else if(L.kind==='temple'){c.beginPath();c.moveTo(px-7,py+14);c.lineTo(px,py);c.lineTo(px+7,py+14);c.closePath();c.fillStyle='#f2f0e6';c.fill();c.stroke();}
     else if(C.labels!==false){c.beginPath();c.moveTo(px,py+1);c.lineTo(px,py-12);c.stroke();c.fillStyle='#e0332a';c.beginPath();c.moveTo(px,py-12);c.lineTo(px+8,py-9);c.lineTo(px,py-6);c.fill();}
+    else if(L.kind==='peak'){c.fillStyle='#e0332a';c.strokeStyle='#fff';c.lineWidth=1.2;c.beginPath();c.moveTo(px,py-3);c.lineTo(px+5,py-11);c.lineTo(px-5,py-11);c.closePath();c.fill();c.stroke();}
     if(C.labels===false){c.restore();continue;}
     c.font='600 12px "IBM Plex Sans Thai",sans-serif';c.textAlign='center';c.lineWidth=3;c.strokeStyle='rgba(255,255,255,.85)';const ty=L.kind==='peak'?py-18:py-8;c.strokeText(L.name,px,ty);c.fillStyle='#14180f';c.fillText(L.name,px,ty);c.restore();}
+  if(C.labels!==false&&!C.night){// names of visible landmarks just outside the view, so the trainee knows which way to turn
+    const side={L:[],R:[]};for(const L of C.lms){if(!L.vis)continue;const da=angDiff(L.az,C.heading);if(Math.abs(da)<=FOV/2)continue;const tg=C.target===L.name;if(!tg&&Math.abs(da)>100)continue;(da<0?side.L:side.R).push({L,da:Math.abs(da)-(tg?1000:0),tg});}
+    c.save();c.font='600 12px "IBM Plex Sans Thai",sans-serif';c.textBaseline='middle';const base=h-(C.mode==='sight'?42:22);
+    for(const k of['L','R']){side[k].sort((a,b)=>a.da-b.da).slice(0,C.mode==='sight'?3:1).forEach((o,i)=>{const t=(k==='L'?'◀ ':'')+(o.tg?'หมุนไป ':'')+o.L.name+(k==='R'?' ▶':''),tw=c.measureText(t).width,yy=base-i*22,xx=k==='L'?6:w-tw-16;
+      c.fillStyle=o.tg?'#f2c200':'rgba(255,255,255,.85)';c.fillRect(xx,yy-10,tw+10,20);c.fillStyle='#14180f';c.fillText(t,xx+5,yy);});}
+    c.restore();}
   if(C.night){c.fillStyle='rgba(2,6,12,.86)';c.fillRect(0,0,w,h);}
+  if(!C.night){c.save();c.font='600 11px "IBM Plex Sans Thai",sans-serif';c.textBaseline='top';c.textAlign='left';const t=`มุมมอง ${FOV}°`;c.fillStyle='rgba(20,24,18,.7)';c.fillRect(6,48,c.measureText(t).width+10,18);c.fillStyle='#e8eadf';c.fillText(t,11,51);c.restore();}
   if(C.mode==='sight'){// looking through the rear-sight slot at the front sighting wire
-    const sw=Math.max(44,w*0.14);c.fillStyle=C.labels===false?'rgba(16,18,14,.5)':'rgba(16,18,14,.82)';c.beginPath();c.rect(0,0,w,h);c.roundRect?c.roundRect(w/2-sw/2,-20,sw,h*0.92+20,sw/2):c.rect(w/2-sw/2,0,sw,h*0.92);c.fill('evenodd');
+    const sw=Math.max(72,w*0.3);c.fillStyle=C.labels===false?'rgba(16,18,14,.32)':'rgba(16,18,14,.5)';c.beginPath();c.rect(0,0,w,h);c.roundRect?c.roundRect(w/2-sw/2,-20,sw,h*0.92+20,sw/2):c.rect(w/2-sw/2,0,sw,h*0.92);c.fill('evenodd');
     c.strokeStyle='#0b0b0b';c.lineWidth=2;c.beginPath();c.moveTo(w/2,0);c.lineTo(w/2,h*0.92);c.stroke();
     c.fillStyle=C.night?'#6dffb0':'#9fe8b8';c.shadowColor='#6dffb0';c.shadowBlur=C.night?10:4;for(const dx of[-sw*0.3,sw*0.3]){c.beginPath();c.arc(w/2+dx,h*0.78,2.6,0,7);c.fill();}c.shadowBlur=0;
     c.fillStyle='#9aa58f';c.font='500 11px "IBM Plex Sans Thai",sans-serif';c.textAlign='left';c.textBaseline='top';c.fillText('มองผ่านช่องเล็งหลัง: เส้นเล็ง → ที่หมาย',10,h-18);
@@ -787,10 +813,16 @@ const endCT=()=>{CT=null;};comp.addEventListener('pointerup',endCT);comp.addEven
 const turn=d=>{C.heading=wrap360(C.heading+d);requestDraw();};
 $('#tl2').onclick=()=>turn(-10);$('#tl1').onclick=()=>turn(-0.5);$('#tr1').onclick=()=>turn(0.5);$('#tr2').onclick=()=>turn(10);
 ['tl2','tl1','tr1','tr2','cmSight','cmTop','bzL','bzR'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('pointerdown',e=>e.stopPropagation());});
-function setCompMode(m){C.mode=m;const cp=$('#comp');if(cp)cp.style.gridTemplateRows=m==='top'?'30% 70%':'40% 60%';setTimeout(resize,0);const a=$('#cmSight'),b=$('#cmTop');if(a)a.setAttribute('aria-pressed',m==='sight');if(b)b.setAttribute('aria-pressed',m==='top');const z=$('#bzbar');if(z)z.hidden=m!=='top';requestDraw();}
+function setCompMode(m){C.mode=m;const cp=$('#comp');if(cp)cp.style.gridTemplateRows=m==='top'?'44% 56%':'58% 42%';setTimeout(resize,0);const a=$('#cmSight'),b=$('#cmTop');if(a)a.setAttribute('aria-pressed',m==='sight');if(b)b.setAttribute('aria-pressed',m==='top');const z=$('#bzbar');if(z)z.hidden=m!=='top';requestDraw();}
+(function(){const bar=$('#compbar');if(!bar)return;const d=document.createElement('div');d.className='seg';d.id='fovseg';
+  d.innerHTML='<button id="fovW" aria-label="มุมมองกว้างขึ้น เห็นภูเขารอบตัวมากขึ้น">◁ ภาพกว้าง</button><button id="fovN" aria-label="ซูมเข้า เห็นยอดเขาชัดขึ้น">ซูมเข้า ▷</button>';
+  bar.insertBefore(d,bar.children[1]||null);
+  const setF=i=>{FOVI=clamp(i,0,FOVS.length-1);FOV=FOVS[FOVI];$('#fovW').disabled=FOVI===FOVS.length-1;$('#fovN').disabled=FOVI===0;requestDraw();};
+  $('#fovW').onclick=()=>setF(FOVI+1);$('#fovN').onclick=()=>setF(FOVI-1);
+  ['fovW','fovN'].forEach(id=>$('#'+id).addEventListener('pointerdown',e=>e.stopPropagation()));setF(FOVI);})();
 $('#cmSight').onclick=()=>setCompMode('sight');$('#cmTop').onclick=()=>setCompMode('top');
 $('#bzL').onclick=()=>{C.lum=wrap360(C.lum-3);clickSnd();requestDraw();};$('#bzR').onclick=()=>{C.lum=wrap360(C.lum+3);clickSnd();requestDraw();};
-function resetCompass(opts){opts=opts||{};C.night=!!opts.night;C.labels=opts.labels!==false;C.hl=opts.hl||null;if(opts.lum!=null)C.lum=opts.lum;setCompMode(opts.mode||'top');}
+function resetCompass(opts){opts=opts||{};C.target=opts.target||null;C.night=!!opts.night;C.labels=opts.labels!==false;C.hl=opts.hl||null;if(opts.lum!=null)C.lum=opts.lum;setCompMode(opts.mode||'top');}
 
 /* ---------- shared question banks (aligned with the lesson slides) ---------- */
 const TYPES={village:'หมู่บ้าน/อาคาร',temple:'วัด',school:'โรงเรียน',hospital:'โรงพยาบาล/สถานพยาบาล',tower:'เสาส่งวิทยุ',bridge:'สะพาน',spot:'จุดระดับความสูง',river:'แม่น้ำ',stream:'ลำห้วย/คลอง',swamp:'หนองน้ำ/บึง',pond:'บ่อน้ำ',road:'ถนนสายหลัก',road3:'ถนนสายรอง',forest:'ป่าไม้',orchard:'สวน/ไร่',paddy:'นาข้าว'};
@@ -903,13 +935,15 @@ function runFixDrill(o){
     <div class="row"><div class="field" style="flex-basis:100%"><label for="fxl">ที่หมายที่เล็ง (ยอดเขาบนแผนที่)</label><select id="fxl">${lmOpts}</select></div>
       <div class="field"><label for="fxm">มุมภาคแม่เหล็กที่อ่านได้ (องศา)</label><input id="fxm" inputmode="decimal"></div><div class="field"><label for="fxg">มุมภาคกลับ (องศา)</label><input id="fxg" inputmode="decimal"></div><button class="btn" id="fxadd">บันทึกและลากเส้น</button></div>
     <ul class="log">${S.sights.map((s,k)=>`<li>${k+1}. ${esc(W.landmarks[s.k].name)} · อ่าน ${fd(s.m)}° · เส้นกริด ${fd(s.g)}°</li>`).join('')}</ul>
-    <div class="tools"><button class="btn" id="fxobs">สังเกตรอบตัว</button><button class="btn" id="fxclr">ลบการเล็งทั้งหมด</button>${plateBtns()}${drawBtns()}</div>
+    <div class="tools"><button class="btn" id="fxobs">สังเกตรอบตัว</button><button class="btn" id="fxundo" ${S.sights.length?'':'disabled'}>ลบการเล็งล่าสุด</button><button class="btn" id="fxclr">ลบการเล็งทั้งหมด</button><button class="btn" id="fxpinx" ${S.pin?'':'disabled'}>ลบหมุดตำแหน่ง</button>${plateBtns()}${drawBtns()}</div>
     <div class="row"><button class="btn primary" id="fxok" ${S.pin&&S.sights.length>=need?'':'disabled'}>ยืนยันตำแหน่ง (เล็งแล้ว ${S.sights.length}/${need})</button></div><div id="fxr"></div>
     `);
     bindPlate();bindDraw();
     on('fxobs',()=>ui('<b>สังเกตได้:</b> '+observeText(st.p.x,st.p.y).filter(t=>!/ยืนอยู่บนถนน|ริมลำห้วย/.test(t)||st.linear).join(' · ')));
     on('fxadd',()=>{const k=+val('fxl'),m=num('fxm'),g=num('fxg');if(isNaN(m)||isNaN(g))return ui('กรอกมุมที่อ่านได้และมุมกริดสกัดกลับก่อน');const L=W.landmarks[k];S.sights.push({k,m:wrap360(m),g:wrap360(g)});S.rays.push({x:L.x,y:L.y,az:wrap360(g)});requestDraw();ui(`ลากเส้นจาก ${esc(L.name)} ที่มุมกริด ${fd(g)}° แล้ว ${S.sights.length<need?'เล็งที่หมายถัดไป':'แตะแผนที่ปักตำแหน่งของคุณ'}`);});
     on('fxclr',()=>{S.sights.length=0;S.rays.length=0;requestDraw();ui('');});
+    on('fxundo',()=>{const s=S.sights.pop();S.rays.pop();requestDraw();ui(s?`ลบการเล็ง ${esc(W.landmarks[s.k].name)} แล้ว`:'');});
+    on('fxpinx',()=>{S.pin=null;drawMarks();ui('ลบหมุดแล้ว แตะแผนที่เพื่อปักใหม่');});
     on('fxok',submit);};
   function submit(){if(!S.pin||S.sights.length<need)return;tapHandler=null;const err=Math.round(dist(S.pin,st.p));
     const rows=S.sights.map(s=>{const L=W.landmarks[s.k],trueMag=wrap360(gridAz(st.p,L)-W.gmDeg),back=wrap360(gridAz(L,st.p)),vis=(C.lms.find(x=>x.name===L.name)||{}).vis;
@@ -1038,7 +1072,7 @@ function runL4(S,L){const sp=standPoint(2);C.heading=rnd(0,360);C.disp=magHeadin
 /* L5 read landmark */
 function runL5(S,L){const sp=standPoint(3);C.heading=rnd(0,360);C.disp=magHeading();C.vel=0;O={marks:[{x:sp.x,y:sp.y,kind:'sp',label:'จุดยืน'}]};setView(sp.x,sp.y,0.12);setStageView('comp',false);resetCompass({mode:'sight'});
   const vis=C.lms.filter(l=>l.vis);const ts=[];for(let k=0;k<5;k++)ts.push(vis.length?vis[k%vis.length]:null);const limit=150;let i=0;const left=startTimer(limit,()=>S.end(0));
-  const show=()=>{if(S.over)return;if(i>=ts.length||!ts[i])return S.end(Math.round(20*left()/limit));const lm=ts[i];
+  const show=()=>{if(S.over)return;if(i>=ts.length||!ts[i])return S.end(Math.round(20*left()/limit));const lm=ts[i];C.target=lm.name;requestDraw();
     setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${ts.length}`,true)+`<p class="q">ส่องเข็มทิศไปที่ <b>${esc(lm.name)}</b> มุมภาคแม่เหล็กเท่าไร?</p><div class="row"><div class="field"><label for="ans">องศา</label><input id="ans" inputmode="decimal" autocomplete="off"></div><button class="btn primary" id="ok">ส่ง</button></div><div id="fbx"></div>`);setPts(S.pts,S.combo);
     const check=()=>{const a=num('ans');if(isNaN(a))return;const t=wrap360(lm.az-W.gmDeg),err=Math.round(angDiff(a,t)*10)/10,e=Math.abs(err),p=e<=1.1?16:e<=2.25?12:e<=4.5?5:0;$('#ok').disabled=true;$('#ans').disabled=true;
       if(p>=12)S.hit(p);else{S.pts+=p;S.miss();}$('#fbx').innerHTML=`<div class="fb ${p>=12?'good':'bad'}">ค่าจริง ${fd(t)}° (คลาด ${err>0?'+':''}${err}°) · +${p}</div>`;setTimeout(()=>{i++;show();},1300);};
@@ -1117,10 +1151,10 @@ function runNav(cfg){
     <div class="flaglist">${rows()}</div>
     ${msg?`<div class="fb">${msg}</div>`:''}
     <div class="row"><div class="field"><label for="laz">มุมภาค (องศา)</label><input id="laz" inputmode="decimal"></div><div class="field"><label for="ld">จำนวนก้าวที่นับ</label><input id="ld" inputmode="numeric"></div><button class="btn primary" id="walk">เดิน</button></div><p class="muted" style="font-size:12.5px;margin:4px 0 0">ก้าวมาตรฐาน 140 ก้าว/100 ม. · ระยะ = ก้าว × 100 ÷ 140</p>
-    <div class="tools"><button class="btn" id="obs">สังเกตรอบตัว</button><button class="btn" id="look">ส่องเข็มทิศ</button><button class="btn" id="find">${cfg.mode==='scoreo'?'ค้นหาธง':'ค้นหาจุดตรวจ'}</button><button class="btn" id="pin" aria-pressed="${N.pinMode}">ปักหมุด</button>${plateBtns()}${drawBtns()}</div>
+    <div class="tools"><button class="btn" id="obs">สังเกตรอบตัว</button><button class="btn" id="look">ส่องเข็มทิศ</button><button class="btn" id="find">${cfg.mode==='scoreo'?'ค้นหาธง':'ค้นหาจุดตรวจ'}</button><button class="btn" id="pin" aria-pressed="${N.pinMode}">ปักหมุด</button><button class="btn" id="pinx" ${N.pins.length?'':'disabled'}>ลบหมุดล่าสุด</button>${plateBtns()}${drawBtns()}</div>
     <details><summary>ตัดกลับหาตำแหน่งตัวเอง</summary>
       <div class="row"><div class="field" style="flex-basis:100%"><label for="lm">จุดสังเกต</label><select id="lm">${lmOpts()}</select></div><div class="field"><label for="raz">มุมภาคกลับ จากจุดสังเกตมาหาเรา (องศา)</label><input id="raz" inputmode="decimal"></div><button class="btn" id="ray">ลากเส้น</button></div>
-      <div class="tools"><button class="btn" id="rclr">ลบเส้น</button><button class="btn" id="usepin" ${N.pins.length?'':'disabled'}>ใช้หมุดล่าสุดเป็นตำแหน่งของฉัน</button></div></details>
+      <div class="tools"><button class="btn" id="rlast" ${N.rays.length?'':'disabled'}>ลบเส้นล่าสุด</button><button class="btn" id="rclr">ลบเส้นทั้งหมด</button><button class="btn" id="usepin" ${N.pins.length?'':'disabled'}>ใช้หมุดล่าสุดเป็นตำแหน่งของฉัน</button></div></details>
     <div class="row"><button class="btn" id="end">${cfg.mode==='scoreo'?(N.endArm?'ยืนยันจบนอกเส้นชัย (หักครึ่ง)':'เข้าเส้นชัย'):'จบภารกิจ'}</button></div>
     <ul class="log">${N.log.slice(-5).reverse().map(l=>`<li>${l}</li>`).join('')}</ul>`);
     bindPlate();bindDraw();on('walk',walk);on('obs',()=>ui('<b>สังเกตได้:</b> '+observeText(N.tp.x,N.tp.y).join(' · ')));
@@ -1128,6 +1162,8 @@ function runNav(cfg){
     on('find',find);on('pin',()=>{N.pinMode=!N.pinMode;setStageView('map',true);ui(N.pinMode?'แตะแผนที่เพื่อปักหมุด':'');});
     on('ray',()=>{const k=+val('lm'),a=num('raz');if(isNaN(a))return;const Lm=W.landmarks[k];N.rays.push({x:Lm.x,y:Lm.y,az:wrap360(a)});ui(`ลากเส้นจาก ${esc(Lm.name)} ที่ ${fd(a)}°`);});
     on('rclr',()=>{N.rays.length=0;ui('');});
+    on('rlast',()=>{N.rays.pop();ui('ลบเส้นสกัดกลับเส้นล่าสุดแล้ว');});
+    on('pinx',()=>{N.pins.pop();ui(N.pins.length?`เหลือหมุด ${N.pins.length} อัน`:'ลบหมุดหมดแล้ว');});
     on('usepin',()=>{const p=N.pins[N.pins.length-1];N.pp={...p};N.plan.push([{...p}]);N.log.push('ตั้งตำแหน่งใหม่ที่หมุด '+N.pins.length);ui('ตั้งตำแหน่งของคุณที่หมุดล่าสุดแล้ว');});
     on('end',endPress);};
   tapHandler=(x,y)=>{if(!N.pinMode||N.done)return;N.pins.push({x,y});ui(`ปักหมุด ${N.pins.length} ที่ ${gridRef(x,y,8)}`);};
