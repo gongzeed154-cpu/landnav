@@ -3,6 +3,6 @@
                 (ดูวิธีทำใน README.md ข้อ 1) ถ้าเว้นว่าง แอปยังฝึกได้ แต่จะไม่ส่งคะแนน
    UNIT       : ชื่อหน่วย แสดงที่หน้าแรกและท้ายโปสเตอร์                         */
 window.LNAV_CONFIG = {
-  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzfH_Rv5jAESmRRVvxoHfbXJY_gubCuDskVVXvA3Ug9oYY7OqV_8u41xdRlK1Mh4EEd/exec',
+  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycby4O4Y1dggS62ySKRpQTTOxVIa7LLg1ePyAK44VCgJlGSJPtt1_r9-qSVwuD4ALSvkA/exec',
   UNIT: 'แผนกฝึกการยังชีพ กองการศึกษา · โรงเรียนการบิน กองทัพอากาศ'
 };
