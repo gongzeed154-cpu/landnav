@@ -808,7 +808,8 @@ function roomMission(m){const i=document.getElementById('code'),b=document.getEl
   if(m){m=String(m).trim().toUpperCase();i.readOnly=true;i.title='รหัสภารกิจกำหนดโดยห้องฝึก';if(b)b.disabled=true;if(i.value!==m){i.value=m;if(b){b.disabled=false;b.click();b.disabled=true;}}}
   else{i.readOnly=false;i.title='';if(b)b.disabled=false;}}
 function roomApply(j){ROOM.off=(+j.now||Date.now())-Date.now();ROOM.code=j.code;ROOM.info=j;roomSave({code:j.code,name:j.name,open:j.open,close:j.close,status:j.status,mission:j.mission,off:ROOM.off,at:Date.now()});
-  if(j.status==='open'){roomHide();ROOM.state='open';roomMission(j.mission);idGate();}else{roomMission('');roomGate(j.status==='notyet'?'notyet':'closed');}roomChip();roomTick();}
+  if(j.status==='open'){const was=ROOM.state==='open'&&ROOM.joined===j.code;roomHide();ROOM.state='open';roomMission(j.mission);idGate();
+    if(!was){ROOM.joined=j.code;setTimeout(()=>{try{if(typeof window.onRoomJoin==='function')window.onRoomJoin();}catch(e){}},2500);}}else{roomMission('');roomGate(j.status==='notyet'?'notyet':'closed');}roomChip();roomTick();}
 /* GET JSON from the score server: fetch first, JSONP fallback (some phones block the cross-site redirect of Apps Script) */
 function getJSON(url,ms){ms=ms||12000;
   const viaFetch=()=>Promise.race([fetch(url,{cache:'no-store'}).then(r=>r.json()),new Promise((_,rj)=>setTimeout(()=>rj(new Error('timeout')),ms))]);
@@ -1507,6 +1508,7 @@ function gameCode(){const g=gameSum(),cl=v=>String(v||'').replace(/[|\n\r#,:]/g,
   const body=`OC2|${CFG.short?'S':'F'}|${cl(GS.st.callsign)}|${cl(GS.st.sid)}|${g.stars}|${g.cl}|${so}|${Math.floor(Date.now()/1000).toString(36)}`;return body+'|'+hashS(body);}
 function gamePayload(){const g=gameSum();return{key:'game-'+(CFG.short?'S':'F'),kind:'game',set:CFG.short?'S':'F',setName:GSET,name:String(GS.st.callsign||'').trim(),sid:String(GS.st.sid||'').trim(),code:GS.code,score:g.got,total:g.tot,cleared:g.cl,levels:LEVELS.length,stars:g.stars,starsMax:LEVELS.length*3,so:g.so,lv:GS.st.levels,soAll:GS.st.so,chk:gameCode(),at:Date.now()};}
 window.APPKIND='game';
+window.onRoomJoin=()=>{if(Object.keys(GS.st.levels||{}).length)gameSubmit();};
 window.onIdentity=(nm,sd)=>{GS.st.callsign=nm.slice(0,40);GS.st.sid=sd.slice(0,20);saveLocal();try{renderRankChip();}catch(e){}if(GS.tab==='lb')showBoard();};
 window.onRestore=d=>{let n=0;const lv=d&&d.lv||{};for(const k of Object.keys(lv)){const v=Math.min(100,+lv[k]||0);if(v>(GS.st.levels[k]||0)){GS.st.levels[k]=v;n++;}}
   const so=d&&d.soAll||{};for(const c of Object.keys(so)){const a=so[c],b=GS.st.so[c];if(a&&(!b||a.pts>b.pts)){GS.st.so[c]=a;n++;}}

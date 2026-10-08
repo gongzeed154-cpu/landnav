@@ -796,7 +796,8 @@ function roomMission(m){const i=document.getElementById('code'),b=document.getEl
   if(m){m=String(m).trim().toUpperCase();i.readOnly=true;i.title='รหัสภารกิจกำหนดโดยห้องฝึก';if(b)b.disabled=true;if(i.value!==m){i.value=m;if(b){b.disabled=false;b.click();b.disabled=true;}}}
   else{i.readOnly=false;i.title='';if(b)b.disabled=false;}}
 function roomApply(j){ROOM.off=(+j.now||Date.now())-Date.now();ROOM.code=j.code;ROOM.info=j;roomSave({code:j.code,name:j.name,open:j.open,close:j.close,status:j.status,mission:j.mission,off:ROOM.off,at:Date.now()});
-  if(j.status==='open'){roomHide();ROOM.state='open';roomMission(j.mission);idGate();}else{roomMission('');roomGate(j.status==='notyet'?'notyet':'closed');}roomChip();roomTick();}
+  if(j.status==='open'){const was=ROOM.state==='open'&&ROOM.joined===j.code;roomHide();ROOM.state='open';roomMission(j.mission);idGate();
+    if(!was){ROOM.joined=j.code;setTimeout(()=>{try{if(typeof window.onRoomJoin==='function')window.onRoomJoin();}catch(e){}},2500);}}else{roomMission('');roomGate(j.status==='notyet'?'notyet':'closed');}roomChip();roomTick();}
 /* GET JSON from the score server: fetch first, JSONP fallback (some phones block the cross-site redirect of Apps Script) */
 function getJSON(url,ms){ms=ms||12000;
   const viaFetch=()=>Promise.race([fetch(url,{cache:'no-store'}).then(r=>r.json()),new Promise((_,rj)=>setTimeout(()=>rj(new Error('timeout')),ms))]);
@@ -1500,6 +1501,7 @@ window.onRestore=d=>{if(!d||!d.mods)return 0;const code=String(d.code||APP.code)
   for(const m of MODN){const v=String(d.mods[m]||'');const mt=v.match(/(\d+)\s*\/\s*(\d+)/);if(!mt)continue;const sc=+mt[1],tt=+mt[2],ps=/ผ่าน/.test(v);const p=s[m];
     if(!p||sc/tt>p.score/p.total||(ps&&!p.pass)){s[m]={score:Math.max(sc,p&&p.total===tt?p.score:0),total:tt,pass:ps||(p&&p.pass)||false,at:Date.now()};n++;}}
   if(n){saveStore();renderTabs();if(APP.mod==='res')setModule('res');}return n;};
+window.onRoomJoin=()=>{const st=APP.store[APP.code]||{};if(Object.keys(st).length)webSubmit();};
 window.onIdentity=()=>{if(APP.mod==='res')setModule('res');};
 function webSubmit(){if(!CFG.web||!lsGet('lnav-name','').trim())return;netSend(appPayload());}
 window.onNetStatus=()=>{const el=document.getElementById('netst')||document.getElementById('sync');if(el)el.textContent=netText();};
