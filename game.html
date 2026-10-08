@@ -809,16 +809,24 @@ function roomMission(m){const i=document.getElementById('code'),b=document.getEl
   else{i.readOnly=false;i.title='';if(b)b.disabled=false;}}
 function roomApply(j){ROOM.off=(+j.now||Date.now())-Date.now();ROOM.code=j.code;ROOM.info=j;roomSave({code:j.code,name:j.name,open:j.open,close:j.close,status:j.status,mission:j.mission,off:ROOM.off,at:Date.now()});
   if(j.status==='open'){roomHide();ROOM.state='open';roomMission(j.mission);idGate();}else{roomMission('');roomGate(j.status==='notyet'?'notyet':'closed');}roomChip();roomTick();}
+/* GET JSON from the score server: fetch first, JSONP fallback (some phones block the cross-site redirect of Apps Script) */
+function getJSON(url,ms){ms=ms||12000;
+  const viaFetch=()=>Promise.race([fetch(url,{cache:'no-store'}).then(r=>r.json()),new Promise((_,rj)=>setTimeout(()=>rj(new Error('timeout')),ms))]);
+  const viaScript=()=>new Promise((res,rj)=>{const cb='lnavcb'+Date.now().toString(36)+Math.floor(Math.random()*1e6);const sc=document.createElement('script');let done=false;
+    const fin=(v,e)=>{if(done)return;done=true;try{delete window[cb];}catch(x){window[cb]=undefined;}sc.remove();e?rj(e):res(v);};
+    window[cb]=v=>fin(v);sc.onerror=()=>fin(null,new Error('jsonp'));setTimeout(()=>fin(null,new Error('timeout')),ms);
+    sc.src=url+(url.includes('?')?'&':'?')+'callback='+cb;document.head.appendChild(sc);});
+  return viaFetch().catch(()=>viaScript());}
 async function roomCheck(code,typed){const u=netURL();if(!CFG.web||!u)return;if(ROOM.busy)return;ROOM.busy=true;let j=null;
-  try{const r=await fetch(u+(u.includes('?')?'&':'?')+'action=room&code='+encodeURIComponent(code||'')+'&t='+Date.now(),{cache:'no-store'});j=await r.json();}catch(e){j=null;}
+  for(let k=0;k<2&&!j;k++){try{j=await getJSON(u+(u.includes('?')?'&':'?')+'action=room&code='+encodeURIComponent(code||'')+'&t='+Date.now());}catch(e){j=null;}}
   ROOM.busy=false;
   if(!j||!j.ok){ // offline or server error: keep going only inside a window we already verified
     const s=roomLoad();if(s&&s.status==='open'&&s.code){ROOM.code=s.code;ROOM.info=s;ROOM.off=s.off||0;
       if(!s.close||srvNow()<s.close){if(ROOM.state!=='open'){ROOM.state='open';roomHide();roomMission(s.mission);roomChip();idGate();}roomTick();return;}
       s.status='closed';ROOM.info=s;roomSave(s);roomGate('closed');roomChip();return;}
     if(typed){roomGate('ask',{code,err:'ต่ออินเทอร์เน็ตไม่ได้ ลองอีกครั้ง'});return;}
-    if(roomMode()==='on')roomGate('offline');else{roomHide();idGate();}return;}
-  if(!('status' in j)||j.status==='none'){roomMode('none');ROOM.state='none';ROOM.code='';roomSave(null);roomMission('');roomHide();roomChip();idGate();return;}
+    if(roomMode()==='on')roomGate('offline');else{roomHide();idGate();roomTick();}return;}
+  if(!('status' in j)||j.status==='none'){roomMode('none');ROOM.state='none';ROOM.code='';roomSave(null);roomMission('');roomHide();roomChip();idGate();roomTick();return;}
   roomMode('on');
   if(j.status==='unknown'){ROOM.off=(+j.now||Date.now())-Date.now();if(code&&!typed)roomSave(null);roomMission('');ROOM.state='ask';roomChip();
     roomGate('ask',{code:typed?code:'',err:code?`ไม่พบห้อง "${code}" ตรวจรหัสกับครูฝึกอีกครั้ง`:''});return;}
@@ -829,12 +837,13 @@ function roomTick(){clearInterval(ROOM.t1);clearTimeout(ROOM.t2);const I=ROOM.in
     ROOM.t2=setTimeout(()=>roomCheck(ROOM.code),90000);}
   else if(ROOM.state==='open'){ROOM.t2=setTimeout(()=>roomCheck(ROOM.code),90000);
     if(I.close){const w=I.close-srvNow();if(w<90000)ROOM.t2=setTimeout(()=>{netFlush();roomCheck(ROOM.code);},Math.max(500,w+1500));}}
-  else if(ROOM.state==='closed')ROOM.t2=setTimeout(()=>roomCheck(ROOM.code),120000);}
+  else if(ROOM.state==='closed')ROOM.t2=setTimeout(()=>roomCheck(ROOM.code),120000);
+  else if(ROOM.state==='none'||ROOM.state==='')ROOM.t2=setTimeout(()=>roomCheck(ROOM.code),120000);}
 function roomInit(){if(!CFG.web)return;if(!netURL()){idGate();return;}const s=roomLoad();
   if(s&&s.code){ROOM.code=s.code;ROOM.info=s;ROOM.off=s.off||0;}
   if(roomMode()==='on')roomGate('check');
   roomCheck(ROOM.code);
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ROOM.state&&ROOM.state!=='none'&&ROOM.state!=='ask')roomCheck(ROOM.code);});}
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ROOM.state!=='ask')roomCheck(ROOM.code);});}
 
 /* ---------- identity (rank-name + number) and restore from the instructor's sheet ---------- */
 function toast(msg,ms){let t=document.getElementById('lnavtoast');if(!t){t=document.createElement('div');t.id='lnavtoast';t.setAttribute('role','status');
@@ -843,8 +852,7 @@ function toast(msg,ms){let t=document.getElementById('lnavtoast');if(!t){t=docum
 function lsG(k){try{return localStorage.getItem(k)||'';}catch(e){return'';}}
 function lsS(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 async function restoreFromServer(name,sid,quiet){const u=netURL();if(!CFG.web||!u||!name)return false;
-  try{const r=await fetch(u+(u.includes('?')?'&':'?')+'action=resume&kind='+(window.APPKIND||'app')+'&set='+(CFG.short?'S':'F')+'&name='+encodeURIComponent(name)+'&sid='+encodeURIComponent(sid||'')+'&t='+Date.now(),{cache:'no-store'});
-    const j=await r.json();if(!j||!j.ok||!j.found||!j.data)return false;const n=typeof window.onRestore==='function'?window.onRestore(j.data):0;
+  try{const j=await getJSON(u+(u.includes('?')?'&':'?')+'action=resume&kind='+(window.APPKIND||'app')+'&set='+(CFG.short?'S':'F')+'&name='+encodeURIComponent(name)+'&sid='+encodeURIComponent(sid||'')+'&t='+Date.now());if(!j||!j.ok||!j.found||!j.data)return false;const n=typeof window.onRestore==='function'?window.onRestore(j.data):0;
     if(n&&!quiet)toast(`กู้คืนผลการฝึกเดิมจากระบบแล้ว ✓ (${n} รายการ)`);return n>0;}catch(e){return false;}}
 function idGate(){if(!CFG.web||lsG('lnav-name').trim())return;if(document.getElementById('idgate'))return;roomStyle();
   const g=document.createElement('div');g.id='roomgate';g.className='idgate';g.setAttribute('role','dialog');g.setAttribute('aria-modal','true');
@@ -953,7 +961,7 @@ function drawPano(){
     c.restore();}
   if(C.night){c.fillStyle='rgba(2,6,12,.86)';c.fillRect(0,0,w,h);}
   if(!C.night){c.save();c.font='600 11px "IBM Plex Sans Thai",sans-serif';c.textBaseline='top';c.textAlign='left';const t=`มุมมอง ${FOV}°`;c.fillStyle='rgba(20,24,18,.7)';c.fillRect(6,48,c.measureText(t).width+10,18);c.fillStyle='#e8eadf';c.fillText(t,11,51);c.restore();}
-  if(C.mode==='sight'){// looking through the rear-sight slot at the front sighting wire
+  if(C.mode==='sight'&&!C.land){// looking through the rear-sight slot at the front sighting wire
     const sw=Math.max(72,w*0.3);c.fillStyle=C.labels===false?'rgba(16,18,14,.32)':'rgba(16,18,14,.5)';c.beginPath();c.rect(0,0,w,h);c.roundRect?c.roundRect(w/2-sw/2,-20,sw,h*0.92+20,sw/2):c.rect(w/2-sw/2,0,sw,h*0.92);c.fill('evenodd');
     c.strokeStyle='#0b0b0b';c.lineWidth=2;c.beginPath();c.moveTo(w/2,0);c.lineTo(w/2,h*0.92);c.stroke();
     c.fillStyle=C.night?'#6dffb0':'#9fe8b8';c.shadowColor='#6dffb0';c.shadowBlur=C.night?10:4;for(const dx of[-sw*0.3,sw*0.3]){c.beginPath();c.arc(w/2+dx,h*0.78,2.6,0,7);c.fill();}c.shadowBlur=0;
@@ -1036,7 +1044,7 @@ const endCT=()=>{CT=null;};comp.addEventListener('pointerup',endCT);comp.addEven
 const turn=d=>{C.heading=wrap360(C.heading+d);requestDraw();};
 $('#tl2').onclick=()=>turn(-10);$('#tl1').onclick=()=>turn(-0.5);$('#tr1').onclick=()=>turn(0.5);$('#tr2').onclick=()=>turn(10);
 ['tl2','tl1','tr1','tr2','cmSight','cmTop','bzL','bzR'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('pointerdown',e=>e.stopPropagation());});
-function compRows(m){const cp=$('#comp'),H=cp?cp.clientHeight:600,small=H<460;if(C.big)return m==='top'?'14% 86%':'38% 62%';return m==='top'?(small?'24% 76%':'30% 70%'):(small?'46% 54%':'52% 48%');}
+function compRows(m){const cp=$('#comp'),H=cp?cp.clientHeight:600,small=H<460;if(C.land)return '100% 0%';if(C.big)return m==='top'?'14% 86%':'38% 62%';return m==='top'?(small?'24% 76%':'30% 70%'):(small?'46% 54%':'52% 48%');}
 function setCompMode(m){C.mode=m;const cp=$('#comp');if(cp)cp.style.gridTemplateRows=compRows(m);setTimeout(resize,0);const a=$('#cmSight'),b=$('#cmTop');if(a)a.setAttribute('aria-pressed',m==='sight');if(b)b.setAttribute('aria-pressed',m==='top');const z=$('#bzbar');if(z)z.hidden=m!=='top';requestDraw();}
 (function(){const bar=$('#compbar');if(!bar)return;const d=document.createElement('div');d.className='seg';d.id='fovseg';
   d.innerHTML='<button id="cbig" aria-pressed="'+(!!C.big)+'" aria-label="ขยายเข็มทิศให้ใหญ่ขึ้น">⤢ เข็มทิศใหญ่</button><button id="fovW" aria-label="มุมมองกว้างขึ้น เห็นภูเขารอบตัวมากขึ้น">◁ ภาพกว้าง</button><button id="fovN" aria-label="ซูมเข้า เห็นยอดเขาชัดขึ้น">ซูมเข้า ▷</button>';
@@ -1045,6 +1053,14 @@ function setCompMode(m){C.mode=m;const cp=$('#comp');if(cp)cp.style.gridTemplate
   $('#cbig').onclick=()=>{C.big=!C.big;try{localStorage.setItem('lnav-cbig',C.big?'1':'0');}catch(e){}$('#cbig').setAttribute('aria-pressed',C.big);setCompMode(C.mode);};
   $('#fovW').onclick=()=>setF(FOVI+1);$('#fovN').onclick=()=>setF(FOVI-1);
   ['fovW','fovN','cbig'].forEach(id=>$('#'+id).addEventListener('pointerdown',e=>e.stopPropagation()));setF(FOVI);})();
+
+/* fold the compass away to look at the terrain (self-location: study the hills first, then read the compass) */
+(function(){const cp=$('#comp');if(!cp)return;C.land=false;const b=document.createElement('button');b.id='cfold';b.type='button';
+  b.style.cssText='position:absolute;right:8px;bottom:8px;z-index:5;border:1px solid rgba(255,255,255,.35);background:rgba(17,20,15,.82);color:#e9eddf;border-radius:99px;padding:7px 12px;font:600 13px "IBM Plex Sans Thai",sans-serif;cursor:pointer;touch-action:manipulation';
+  const lab=()=>{b.textContent=C.land?'▴ แสดงเข็มทิศ':'▾ ย่อเข็มทิศ · ดูพื้นที่';b.setAttribute('aria-pressed',C.land);};lab();
+  b.addEventListener('pointerdown',e=>e.stopPropagation());
+  b.onclick=()=>{C.land=!C.land;lab();setCompMode(C.mode);};cp.appendChild(b);
+  window.compLandReset=()=>{if(C.land){C.land=false;lab();}};})();
 window.addEventListener('resize',()=>{const cp=$('#comp');if(cp&&!cp.hidden)cp.style.gridTemplateRows=compRows(C.mode);});
 $('#cmSight').onclick=()=>setCompMode('sight');$('#cmTop').onclick=()=>setCompMode('top');
 $('#bzL').onclick=()=>{C.lum=wrap360(C.lum-3);clickSnd();requestDraw();};$('#bzR').onclick=()=>{C.lum=wrap360(C.lum+3);clickSnd();requestDraw();};
@@ -1498,7 +1514,7 @@ window.onRestore=d=>{let n=0;const lv=d&&d.lv||{};for(const k of Object.keys(lv)
 function gameSubmit(){if(!CFG.web||!String(GS.st.callsign||'').trim())return;netSend(gamePayload());}
 window.onNetStatus=()=>{const el=document.getElementById('netst');if(el)el.textContent=netText();};
 GS.webBoard=null;
-function fetchWebBoard(){const u=netURL();if(!CFG.web||!u)return;fetch(u+'?action=board&set='+(CFG.short?'S':'F')+(ROOM.code&&ROOM.state==='open'?'&room='+encodeURIComponent(ROOM.code):'')).then(r=>r.json()).then(j=>{if(!j||!Array.isArray(j.rows))return;
+function fetchWebBoard(){const u=netURL();if(!CFG.web||!u)return;getJSON(u+'?action=board&set='+(CFG.short?'S':'F')+(ROOM.code&&ROOM.state==='open'?'&room='+encodeURIComponent(ROOM.code):'')).then(j=>{if(!j||!Array.isArray(j.rows))return;
   GS.webBoard=j.rows.map(r=>({id:'w-'+(r.sid||'')+r.name,callsign:r.name,stars:+r.stars||0,cleared:+r.cleared||0,at:0,so:r.code&&r.so?{[r.code]:{pts:+r.so,time:'',flags:''}}:{}}));renderBoard();}).catch(()=>{});}
 function gameFormURL(){const F=CFG.form;if(!F||!F.url)return'';const g=gameSum();
   const v={name:GS.st.callsign||'',sid:GS.st.sid||'',set:GSET,code:GS.code,score:g.got,total:g.tot,passed:`${g.cl}/${LEVELS.length}`,stars:`${g.stars}/${LEVELS.length*3}`,so:g.so,chk:gameCode()};
