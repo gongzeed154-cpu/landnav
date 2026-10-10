@@ -1,6 +1,7 @@
 /* ================= SHARED CORE: world, map, tools, lensatic compass ================= */
 /* ---------- constants & helpers ---------- */
-const MAP=8000, E0=40000, N0=20000, ZONE='47P PS', MPD=6400/360, FOV=50;
+const MAP=8000, E0=40000, N0=20000, ZONE='47P PS', MPD=6400/360;
+const FOVS=[30,45,60,90];let FOVI=(typeof window!=='undefined'&&window.innerWidth<700)?2:1,FOV=FOVS[FOVI];
 const LAT0=14+15/60, LON0=99+30/60, M_LAT=110600, M_LON=107870; // SW corner of the sheet, metres per degree
 const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -8,14 +9,14 @@ const hyp=Math.hypot;
 const wrap360=a=>((a%360)+360)%360;
 const wrapMil=a=>((a%6400)+6400)%6400;
 const angDiff=(a,b,m)=>{m=m||360;return ((a-b)%m+m*1.5)%m-m/2;};
-const rnd=(a,b)=>a+Math.random()*(b-a);
-const pick=a=>a[(Math.random()*a.length)|0];
-const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]];}return a;};
+const RNG={f:Math.random};const rnd=(a,b)=>a+RNG.f()*(b-a);
+const pick=a=>a[(RNG.f()*a.length)|0];
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=(RNG.f()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]];}return a;};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function hashStr(s){let h=2166136261;for(const c of s){h^=c.codePointAt(0);h=Math.imul(h,16777619);}return h>>>0;}
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 function gaussR(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
-const gauss=()=>gaussR(Math.random);
+const gauss=()=>gaussR(()=>RNG.f());
 function makeNoise(r){
   const q=[...Array(256).keys()];for(let i=255;i>0;i--){const j=(r()*(i+1))|0;[q[i],q[j]]=[q[j],q[i]];}
   const p=new Uint8Array(512);for(let i=0;i<512;i++)p[i]=q[i&255];
@@ -212,12 +213,86 @@ let O={};          // overlays
 let tapHandler=null;
 function fitZoom(){return Math.min(mapC.clientWidth,mapC.clientHeight)/8600;}
 function sizeCanvas(c){const w=c.clientWidth,h=c.clientHeight;if(!w||!h)return;const W2=Math.round(w*DPR),H2=Math.round(h*DPR);if(c.width!==W2||c.height!==H2){c.width=W2;c.height=H2;}}
-function resize(){DPR=Math.min(window.devicePixelRatio||1,2.5);sizeCanvas(mapC);sizeCanvas(panoC);sizeCanvas(dialC);requestDraw();}
+function resize(){try{const cv=APP.view==='comp';document.body.classList.toggle('comp-on',cv);document.body.classList.toggle('comp-big',cv&&!!C.big);const cp=document.getElementById('comp');if(cp&&cv&&typeof compRows==='function')cp.style.gridTemplateRows=compRows(C.mode);}catch(e){}DPR=Math.min(window.devicePixelRatio||1,2.5);sizeCanvas(mapC);sizeCanvas(panoC);sizeCanvas(dialC);requestDraw();}
 function zMax(){return 1.6;}
 function setView(x,y,z){V.cx=clamp(x,-600,MAP+600);V.cy=clamp(y,-600,MAP+600);if(z)V.z=clamp(z,fitZoom()*0.9,zMax());requestDraw();}
 function fitView(){setView(4000,4000,fitZoom());}
+/* ---------- pin nudge pad: move the last pin with arrow buttons (fingers are too coarse on phones) ---------- */
+const NUDGE={src:null,th:null,step:10,el:null,key:''};
+function nudgeReg(get,moved){NUDGE.src={get,moved};NUDGE.th=tapHandler;NUDGE.key='';requestDraw();}
+function nudgeActive(){const s=NUDGE.src;return!!(s&&tapHandler&&tapHandler===NUDGE.th&&APP.view==='map'&&s.get());}
+function nudgeMove(dx,dy){if(!nudgeActive())return;const p=NUDGE.src.get();p.x=clamp(p.x+dx*NUDGE.step,0,MAP);p.y=clamp(p.y+dy*NUDGE.step,0,MAP);
+  try{NUDGE.src.moved(p);}catch(e){}NUDGE.key='';requestDraw();
+  const w=mapC.clientWidth,h=mapC.clientHeight,[sx,sy]=S2(p.x,p.y);if(sx<30||sy<30||sx>w-30||sy>h-30)setView(p.x,p.y);}
+function nudgeUI(){const on=nudgeActive();
+  if(!NUDGE.el){if(!on)return;uiStyle();const el=document.createElement('div');el.className='nudgepad';el.id='nudgepad';el.setAttribute('aria-label','เลื่อนหมุดทีละนิด');
+    el.innerHTML='<div class="nt" id="ndt" role="button" tabindex="0" title="แตะเพื่อย่อ/ขยายแผงลูกศร"></div><span></span><button data-d="0,1" aria-label="เลื่อนหมุดขึ้น (เหนือ)">▲</button><span></span><button data-d="-1,0" aria-label="เลื่อนหมุดซ้าย (ตะวันตก)">◀</button><button class="nc" id="ndc" aria-label="ไปที่หมุด">หมุด</button><button data-d="1,0" aria-label="เลื่อนหมุดขวา (ตะวันออก)">▶</button><span></span><button data-d="0,-1" aria-label="เลื่อนหมุดลง (ใต้)">▼</button><span></span><button class="ns" id="nds"></button>';
+    $('#stage').appendChild(el);NUDGE.el=el;
+    el.querySelectorAll('button[data-d]').forEach(b=>{const[dx,dy]=b.dataset.d.split(',').map(Number);let t1=0,t2=0;
+      const stop=()=>{clearTimeout(t1);clearInterval(t2);};
+      b.addEventListener('pointerdown',e=>{e.preventDefault();nudgeMove(dx,dy);t1=setTimeout(()=>{t2=setInterval(()=>nudgeMove(dx,dy),90);},380);});
+      ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,stop));
+      b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();nudgeMove(dx,dy);}});});
+    el.querySelector('#ndt').onclick=()=>{el.classList.toggle('mini');try{localStorage.setItem('lnav-nudgemini',el.classList.contains('mini')?'1':'');}catch(e){}NUDGE.key='';nudgeUI();};
+    try{if(localStorage.getItem('lnav-nudgemini'))el.classList.add('mini');}catch(e){}
+    el.querySelector('#nds').onclick=()=>{NUDGE.step=NUDGE.step===10?2:NUDGE.step===2?50:10;NUDGE.key='';nudgeUI();};
+    el.querySelector('#ndc').onclick=()=>{const p=NUDGE.src&&NUDGE.src.get();if(p)setView(p.x,p.y,Math.max(V.z,0.5));};
+    document.addEventListener('keydown',e=>{if(!nudgeActive())return;const t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='SELECT'||t.tagName==='TEXTAREA'))return;
+      const d={ArrowUp:[0,1],ArrowDown:[0,-1],ArrowLeft:[-1,0],ArrowRight:[1,0]}[e.key];if(d){e.preventDefault();nudgeMove(d[0],d[1]);}});}
+  const p=on?NUDGE.src.get():null,key=on?[Math.round(p.x),Math.round(p.y),NUDGE.step].join():'off';if(key===NUDGE.key)return;NUDGE.key=key;NUDGE.el.hidden=!on;if(!on)return;
+  NUDGE.el.querySelector('#ndt').innerHTML=`${NUDGE.el.classList.contains('mini')?'✥ เลื่อนหมุด':'เลื่อนหมุดทีละนิด ▾'}<b>${gridRef(p.x,p.y,8)}</b>`;
+  NUDGE.el.querySelector('#nds').textContent=`ก้าวละ ${NUDGE.step} ม. · แตะเปลี่ยน`;}
+
+/* ---------- tolerances: lenient pass, always show the true value and why ---------- */
+const TOL={g8:2,az:3,dist:0.08,distMin:40,comp:4,compNight:5,geo:8,plot:40,find:100,fixFull:150,fixHalf:300};
+function gridCheck(ans,p,d){ // ans = digits typed; returns {ok,exact,de,dn,truth,msg}
+  const h=d/2,mod=Math.pow(10,h),truth=gridRef(p.x,p.y,d).replace(' ',''),te=+truth.slice(0,h),tn=+truth.slice(h),ae=+ans.slice(0,h),an=+ans.slice(h);
+  const wr=v=>{v=((v%mod)+mod)%mod;return v>mod/2?v-mod:v;};const de=wr(ae-te),dn=wr(an-tn),tol=d===8?TOL.g8:0,unit=d===8?10:100;
+  const ok=Math.abs(de)<=tol&&Math.abs(dn)<=tol,exact=de===0&&dn===0;const tips=[];
+  const swapped=ans.slice(0,h)===truth.slice(h)&&ans.slice(h)===truth.slice(0,h);
+  if(swapped&&!exact)tips.push('สลับลำดับ: ต้องอ่าน<b>ขวา</b> (ตัวเลขเส้นกริดตั้ง ขอบบน/ล่าง) ก่อน แล้วจึงอ่าน<b>ขึ้น</b> (เส้นกริดราบ ขอบซ้าย/ขวา)');
+  else{const ax=(v,nm,big)=>{if(Math.abs(v)<=tol)return;const m=Math.abs(v)*unit;
+      if(d===8&&Math.abs(v)%10===0)tips.push(`${nm}คลาด ${m} ม. พอดี 1 ช่องกริด: ใช้เส้นกริดเส้นผิด ต้องใช้เส้นที่อยู่${big}ของจุด`);
+      else if(d===8&&Math.abs(v)<10)tips.push(`${nm}คลาด ${m} ม.: ขยายแผนที่ แล้วประมาณสัดส่วนภายในช่อง 100 ม. ให้ละเอียดขึ้น (แบ่ง 10 ส่วน) หรือวางมุมไม้วัดพิกัดทับจุดพอดี`);
+      else if(d===6&&Math.abs(v)===1)tips.push(`${nm}คลาด 1 ช่อง (100 ม.): ใช้ค่าของเส้นกริดที่อยู่${big}ของจุดเสมอ ไม่ปัดขึ้น`);
+      else tips.push(`${nm}คลาด ${m.toLocaleString()} ม.: ตรวจตัวเลขใหญ่ 2 หลักของเส้นกริด`);};
+    ax(de,'ค่าตะวันออก (ขวา) ','ทางซ้าย');ax(dn,'ค่าเหนือ (ขึ้น) ','ทางใต้');}
+  const sg=v=>(v>0?'+':'')+v;
+  const msg=`ค่าจริง <span class="mono">${ZONE} ${gridRef(p.x,p.y,d)}</span> · คุณตอบ <span class="mono">${ans.slice(0,h)} ${ans.slice(h)}</span>`+(exact||swapped?'':` (ขวา ${sg(de)} · ขึ้น ${sg(dn)} หลัก = ${Math.abs(de)*unit} / ${Math.abs(dn)*unit} ม.)`)
+    +(ok&&!exact?`<br><span class="muted">ผ่าน: ${d}-หลักยอมคลาดได้ ±${tol} ในหลักสุดท้าย (±${tol*unit} ม.) ทั้งแนวตั้งและแนวนอน</span>`:'')+(tips.length?'<br>'+tips.map(t=>'• '+t).join('<br>'):'');
+  return{ok,exact,de,dn,truth,msg};}
+function compassTip(ans,truth){const e=angDiff(ans,truth),a=Math.abs(e),t=[];
+  if(ans>360)t.push('ค่าเกิน 360 น่าจะอ่านเป็น<b>มิล</b> (ตัวเลขดำวงนอก) ให้อ่านตัวเลข<b>สีแดง</b> (องศา)');
+  else if(a>=170)t.push('คลาดเกือบ 180°: น่าจะอ่านมุมกลับ หรือหันผิดด้าน');
+  else if(a>TOL.comp)t.push('ให้เส้นเล็งในช่องเล็งหลังทับที่หมายพอดี รอหน้าปัดนิ่งก่อนอ่าน แล้วอ่านค่าใต้เส้นดัชนี');
+  return t.length?'<br>• '+t.join('<br>• '):'';}
+function angTip(ans,truth,label){const a=Math.abs(angDiff(ans,truth));if(a<=TOL.az)return'';
+  if(a>=170)return`<br>• ${label}คลาดเกือบ 180°: วัดกลับทิศ ต้องวัดจากจุดเริ่ม (A) ไปจุดปลาย (B)`;
+  if(Math.abs(a-90)<=6)return`<br>• ${label}คลาดราว 90°: ตรวจว่าแนว N-S ของแผ่นวัดมุมขนานกับเส้นกริดตั้ง และอ่านมาตราที่ถูกด้าน`;
+  return`<br>• ${label}คลาด ${Math.round(a)}°: วางจุดกึ่งกลางแผ่นทับจุดเริ่มพอดี ให้เส้น N-S ขนานเส้นกริด แล้วอ่านตรงที่เส้นดินสอตัดขอบแผ่น`;}
+function distTip(ans,truth){if(Math.abs(ans-truth)<=Math.max(truth*TOL.dist,TOL.distMin))return'';const r=ans/truth;
+  if(Math.abs(r-2)<0.15||Math.abs(r-0.5)<0.08)return'<br>• ระยะคลาดเท่าตัว: ตรวจมาตราส่วน 1:50,000 (1 ซม. บนแผนที่ = 500 ม.) และหน่วยที่ใช้';
+  if(Math.abs(r-10)<1||Math.abs(r-0.1)<0.01)return'<br>• ระยะคลาด 10 เท่า: ตรวจหน่วย เมตร/กิโลเมตร';
+  return`<br>• ระยะคลาด ${Math.round(Math.abs(ans-truth))} ม.: วางขอบเข็มทิศให้ขีด 0 อยู่ที่จุดเริ่มพอดี แล้วอ่านที่จุดปลาย (ช่องกริด 1 ช่อง = 1,000 ม. ใช้เทียบได้)`;}
+const navBand=d=>d<=200?'ใกล้มาก (ไม่เกิน 200 ม.)':d<=500?'ห่างราว 200-500 ม.':d<=1000?'ห่างราว 500 ม.-1 กม.':'ห่างเกิน 1 กม.';
+function searchHelp(d,az,nFail){const t=[`จุดตรวจอยู่ <b>${navBand(d)}</b>`];
+  if(d<=200)t.push('ค้นหาเป็นรูปกล่อง: เดินออก 50-100 ม. ทีละทิศ แล้วกดค้นหา');
+  else t.push('ตรวจตำแหน่งตัวเองก่อน: "สังเกตรอบตัว" หรือส่องเข็มทิศหายอดเขาแล้วสกัดกลับ จากนั้นวัดมุมและระยะใหม่จากตำแหน่งนั้น');
+  if(nFail>=2)t.push(`คำใบ้: ไปทาง<b>${dir8(az)}</b> ประมาณ ${Math.max(100,Math.round(d/100)*100).toLocaleString()} ม.`);
+  return t.join(' · ');}
+function legReview(legs,pace){ // legs: {from, pp, az, paces, cnt, end, tgt, label}
+  if(!legs.length)return'';const rows=legs.map((L,k)=>{if(!L.tgt)return'';const t=[],azT=gridAz(L.pp,L.tgt),dT=dist(L.pp,L.tgt),posErr=dist(L.pp,L.from);
+    const plan={x:L.from.x+Math.sin(L.az*Math.PI/180)*L.cnt,y:L.from.y+Math.cos(L.az*Math.PI/180)*L.cnt},drift=dist(plan,L.end),azE=angDiff(L.az,azT),dE=L.cnt-dT,miss=dist(L.end,L.tgt);
+    if(posErr>100)t.push(`ก่อนเริ่มขานี้ ตำแหน่งที่คุณคิดว่าอยู่คลาดจากจริง ${Math.round(posErr)} ม. ควรหาที่อยู่ตัวเอง (สกัดกลับ) ก่อนวางแผนต่อ`);
+    if(Math.abs(azE)>TOL.az)t.push(`มุมคลาด ${azE>0?'+':''}${Math.round(azE)}° (ควรเป็น ${fd(azT)}°)${Math.abs(azE)>=170?' — วัดกลับทิศ':' — วัดมุมใหม่: แผ่นวัดมุมทับจุดเริ่ม เส้น N-S ขนานเส้นกริด'}`);
+    if(Math.abs(dE)>Math.max(dT*0.1,60))t.push(`ระยะ${dE>0?'เกิน':'ขาด'} ${Math.round(Math.abs(dE))} ม. (ควรเดิน ${Math.round(dT)} ม. = ${Math.round(dT*pace/100)} ก้าว · สูตร ระยะ × ${pace} ÷ 100)`);
+    if(drift>Math.max(60,L.cnt*0.04))t.push(`เดินเบี่ยงจากแนวที่ตั้งใจ ${Math.round(drift)} ม. (ป่า ทางลาดชัน และก้าวจริงที่ต่างจากก้าวมาตรฐาน) — ขาที่ยาวควรแบ่งเป็นช่วงสั้นๆ และหาจุดสังเกตตรวจระหว่างทาง`);
+    const ok=miss<=TOL.find;
+    return`<li><b>ขา ${k+1}</b> → ${esc(L.label)}: ตั้ง ${fd(L.az)}° นับ ${L.paces} ก้าว (≈${Math.round(L.cnt)} ม.) · ค่าที่ถูกจากจุดเริ่มที่คุณคิด: <span class="mono">${fd(azT)}° · ${Math.round(dT)} ม.</span> · จบห่าง ${esc(L.label)} <b>${Math.round(miss)} ม.</b> ${ok?'<span class="pill pass">ถึงเป้า</span>':''}${t.length?'<br><span class="muted">'+t.join('<br>')+'</span>':(ok?'':'<br><span class="muted">มุมและระยะใกล้เคียง ความคลาดมาจากการเดิน ใช้การค้นหารอบจุดหรือสกัดกลับช่วย</span>')}</li>`;}).join('');
+  return`<h3>วิเคราะห์ทีละขา</h3><ul class="log" style="font-size:13.5px">${rows}</ul>`;}
+
 let raf=0;function requestDraw(){if(!raf)raf=requestAnimationFrame(frame);}
-function frame(){raf=0;palette();if(APP.view==='map')drawMap();else{const anim=stepCard();drawPano();drawDial();if(anim)requestDraw();}}
+function frame(){raf=0;palette();plateLockUI();nudgeUI();if(APP.view==='map')drawMap();else{const anim=stepCard();drawPano();drawDial();if(anim)requestDraw();}}
 let VT={ox:0,oy:0,z:1};
 const S2=(x,y)=>[x*VT.z+VT.ox,-y*VT.z+VT.oy];
 const M2=(sx,sy)=>({x:(sx-VT.ox)/VT.z,y:(VT.oy-sy)/VT.z});
@@ -304,7 +379,10 @@ function drawMarker(c,m){const[p,q]=S2(m.x,m.y);c.save();
 function drawPencil(c,L,tmp){const[a1,b1]=S2(L.a.x,L.a.y),[a2,b2]=S2(L.b.x,L.b.y);const col=L.color||'#2a2a2a';c.save();c.lineCap='round';
   if(col===LCOL.y){c.strokeStyle='rgba(40,30,0,.75)';c.lineWidth=4.2;c.beginPath();c.moveTo(a1,b1);c.lineTo(a2,b2);c.stroke();}
   c.strokeStyle=col;c.globalAlpha=tmp?.75:1;c.lineWidth=col==='#2a2a2a'?1.7:2.4;if(tmp)c.setLineDash([6,4]);
-  c.beginPath();c.moveTo(a1,b1);c.lineTo(a2,b2);c.stroke();c.setLineDash([]);c.fillStyle=col;for(const[p,q]of[[a1,b1],[a2,b2]]){c.beginPath();c.arc(p,q,2.2,0,7);c.fill();}c.restore();}
+  c.beginPath();c.moveTo(a1,b1);c.lineTo(a2,b2);c.stroke();c.setLineDash([]);c.fillStyle=col;for(const[p,q]of[[a1,b1],[a2,b2]]){c.beginPath();c.arc(p,q,2.2,0,7);c.fill();}
+  if(L.lab&&hyp(a2-a1,b2-b1)>36){const mx=(a1+a2)/2,my=(b1+b2)/2,ang=Math.atan2(b2-b1,a2-a1);c.save();c.translate(mx,my);c.rotate(ang);c.beginPath();c.moveTo(4,0);c.lineTo(-4,-4);c.lineTo(-4,4);c.closePath();c.fill();c.restore();
+    c.font='600 11.5px "IBM Plex Sans Thai",sans-serif';const tw=c.measureText(L.lab).width;c.fillStyle='rgba(255,255,255,.88)';c.fillRect(mx-tw/2-4,my+7,tw+8,16);c.fillStyle=col;c.textAlign='center';c.textBaseline='top';c.fillText(L.lab,mx,my+9);}
+  c.restore();}
 function drawOverlays(c,w,h){
   const o=O;
   if(o.tracks)for(const t of o.tracks){if(t.pts.length<2)continue;c.save();c.strokeStyle=t.color;c.lineWidth=t.width||2.2;c.setLineDash(t.dash||[]);c.lineJoin='round';c.beginPath();t.pts.forEach((p,i)=>{const[a,b]=S2(p.x,p.y);i?c.lineTo(a,b):c.moveTo(a,b);});c.stroke();c.restore();}
@@ -314,6 +392,8 @@ function drawOverlays(c,w,h){
   if(o.tmpLine)drawPencil(c,o.tmpLine,true);
   if(o.ruler)drawRuler(c,o.ruler.a,o.ruler.b);
   if(o.plate)drawPlate(c,o.plate);
+  if(o.plate&&PLOCK.mode!=='off'){const[p,q]=S2(o.plate.x,o.plate.y);c.save();c.font='600 12px "IBM Plex Sans Thai",sans-serif';const t=PLOCK_TAG[PLOCK.mode];const tw=c.measureText(t).width;
+    c.fillStyle='rgba(47,61,39,.92)';c.beginPath();c.roundRect?c.roundRect(p-tw/2-7,q+14,tw+14,20,6):c.rect(p-tw/2-7,q+14,tw+14,20);c.fill();c.fillStyle='#fff';c.textBaseline='middle';c.textAlign='center';c.fillText(t,p,q+24);c.restore();}
   if(o.marks)for(const m of o.marks)drawMarker(c,m);
   for(const u of UNITS){const[p,q]=S2(u.x,u.y);drawUnit(c,p,q,u.sym,u.side,clamp(30*Math.sqrt(VT.z/0.08),20,40));}
 }
@@ -333,6 +413,44 @@ function drawRuler(c,A,B){
 
 /* ---------- square protractor plate (1:50,000) ---------- */
 const PLATE={H:2500,romer:{x:-440,y:1500},sixty:{x:1870,y:-250,len:1843}};
+/* plate lock: when locked, dragging on the plate pans/zooms the map instead of moving the plate */
+const PLOCK={mode:'off',get on(){return this.mode==='all';}};let plockBtn=null,plockKey='',plockMenu=null;
+const PLOCK_TXT={off:'ไม่ล็อก (เลื่อนแผ่นได้อิสระ)',all:'ล็อกทั้งหมด (แผ่นไม่ขยับ)',v:'ล็อกแนวตั้ง (เลื่อนได้แค่ซ้าย-ขวา)',h:'ล็อกแนวนอน (เลื่อนได้แค่ขึ้น-ลง)'};
+const PLOCK_TAG={all:'ล็อกแผ่นแล้ว',v:'ล็อกแนวตั้ง · เลื่อนได้ซ้าย-ขวา',h:'ล็อกแนวนอน · เลื่อนได้ขึ้น-ลง'};
+const LOCK_SVG='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
+const UNLOCK_SVG='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 7V5a3 3 0 0 1 5.6-1.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
+const LOCKH_SVG='<svg width="18" height="16" viewBox="0 0 18 16" aria-hidden="true"><path d="M1 8h16M1 8l3-3M1 8l3 3M17 8l-3-3M17 8l-3 3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
+const LOCKV_SVG='<svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true"><path d="M8 1v16M8 1L5 4M8 1l3 3M8 17l-3-3M8 17l3-3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
+const PLOCK_ICON={off:UNLOCK_SVG,all:LOCK_SVG,v:LOCKH_SVG,h:LOCKV_SVG};
+function uiStyle(){if(document.getElementById('lnavui'))return;const st=document.createElement('style');st.id='lnavui';st.textContent=`
+.plockmenu{position:absolute;z-index:6;display:flex;flex-direction:column;gap:4px;padding:6px;border-radius:10px;background:rgba(251,252,247,.97);color:#1b2117;box-shadow:0 2px 10px rgba(0,0,0,.3);min-width:230px}
+.plockmenu[hidden]{display:none}.plockmenu b{font-size:12px;color:#4a5544;padding:2px 4px}
+.plockmenu button{display:flex;align-items:center;gap:8px;text-align:left;border:1px solid rgba(0,0,0,.15);background:#fff;color:#1b2117;border-radius:8px;padding:8px 10px;font:500 14px "IBM Plex Sans Thai",sans-serif;cursor:pointer}
+.plockmenu button[aria-pressed="true"]{background:#2f3d27;color:#fff;border-color:#2f3d27}
+.plockmenu button svg{flex:none}
+.nudgepad{position:absolute;left:10px;bottom:12px;z-index:4;display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:auto repeat(3,44px) auto;gap:4px;padding:6px;border-radius:12px;background:rgba(251,252,247,.95);color:#1b2117;box-shadow:0 2px 8px rgba(0,0,0,.28);touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.nudgepad[hidden]{display:none}
+.nudgepad .nt{grid-column:1/4;font-size:11.5px;line-height:1.25;text-align:center;color:#4a5544}
+.nudgepad .nt b{display:block;font:600 13px "IBM Plex Mono",monospace;color:#1b2117}
+.nudgepad button{border:1px solid rgba(0,0,0,.18);background:#fff;color:#1b2117;border-radius:9px;font-size:18px;line-height:1;padding:0;cursor:pointer}
+.nudgepad button:active{background:#dfe6d4}
+.nudgepad .nc{font-size:11px;font-weight:600}
+.nudgepad .ns{grid-column:1/4;font-size:12px;padding:5px 0}
+@media (max-width:600px){.nudgepad{left:6px;bottom:6px;gap:3px;padding:4px;grid-template-columns:repeat(3,34px);grid-template-rows:auto repeat(3,34px) auto}.nudgepad button{font-size:15px}.nudgepad .nt{font-size:10.5px}.nudgepad .nt b{font-size:11.5px}.nudgepad .ns{font-size:10.5px;padding:3px 0}}
+.nudgepad .nt{cursor:pointer}.nudgepad.mini{grid-template-rows:auto;grid-template-columns:auto}.nudgepad.mini>:not(.nt){display:none}.nudgepad.mini .nt b{display:inline;margin-left:4px}`;document.head.appendChild(st);}
+function setPlock(m){PLOCK.mode=m;plockKey='';if(plockMenu)plockMenu.hidden=true;plateLockUI();requestDraw();}
+function plockMenuShow(){uiStyle();const st=document.getElementById('stage');if(!st||!plockBtn)return;
+  if(!plockMenu){plockMenu=document.createElement('div');plockMenu.className='plockmenu';plockMenu.setAttribute('role','menu');st.appendChild(plockMenu);
+    document.addEventListener('pointerdown',e=>{if(plockMenu&&!plockMenu.hidden&&!plockMenu.contains(e.target)&&e.target!==plockBtn&&!plockBtn.contains(e.target))plockMenu.hidden=true;});}
+  plockMenu.innerHTML='<b>ล็อกแผ่นวัดมุม</b>'+['off','all','v','h'].map(k=>`<button data-m="${k}" aria-pressed="${PLOCK.mode===k}">${PLOCK_ICON[k]}<span>${PLOCK_TXT[k]}</span></button>`).join('');
+  plockMenu.querySelectorAll('button').forEach(b=>b.onclick=()=>setPlock(b.dataset.m));
+  const r=plockBtn.getBoundingClientRect(),sr=st.getBoundingClientRect();plockMenu.hidden=false;
+  plockMenu.style.top=Math.max(6,Math.min(r.top-sr.top,sr.height-plockMenu.offsetHeight-6))+'px';plockMenu.style.right=(sr.right-r.left+6)+'px';}
+function plateLockUI(){const bar=document.getElementById('zoombar');if(!bar)return;
+  if(!plockBtn){plockBtn=document.createElement('button');plockBtn.className='btn iconbtn plock';plockBtn.id='plock';plockBtn.addEventListener('click',()=>{if(plockMenu&&!plockMenu.hidden)plockMenu.hidden=true;else plockMenuShow();});bar.appendChild(plockBtn);}
+  const key=[!!O.plate,PLOCK.mode].join();if(key===plockKey)return;plockKey=key;
+  plockBtn.hidden=!O.plate;if(!O.plate&&plockMenu)plockMenu.hidden=true;plockBtn.setAttribute('aria-pressed',PLOCK.mode!=='off');plockBtn.innerHTML=PLOCK_ICON[PLOCK.mode];
+  const t='ล็อกแผ่นวัดมุม: '+PLOCK_TXT[PLOCK.mode]+' · แตะเพื่อเลือก';plockBtn.title=t;plockBtn.setAttribute('aria-label',t);}
 const insidePlate=m=>!!O.plate&&Math.abs(m.x-O.plate.x)<=PLATE.H&&Math.abs(m.y-O.plate.y)<=PLATE.H;
 function plateBtns(extra){return`<button class="btn" id="pl" aria-pressed="${!!O.plate}">แผ่นวัดมุม</button>${extra||''}`;}
 function snapPlateView(p){const w=mapC.clientWidth,h=mapC.clientHeight,zz=clamp(Math.min(w-150,h-80)/1150,0.05,1.2);setView(p.x-(w/2-110)/zz,p.y-(h/2-56)/zz,zz);}
@@ -407,10 +525,10 @@ function palette(force){const key=[DRAW.on,PIN.on,DRAW.color,PIN.sym,PIN.side,$(
     PAL.querySelectorAll('.sw').forEach(b=>b.onclick=()=>{DRAW.color=LCOL[b.dataset.c];palette(1);});
     $('#palundo').onclick=()=>{(O.lines||[]).pop();requestDraw();};return;}
   PAL.innerHTML=`<span class="pl">ฝ่าย</span><button class="sw${PIN.side==='b'?' on':''}" data-s="b" style="--c:#1f5fbf" aria-label="ฝ่ายเรา สีน้ำเงิน" title="ฝ่ายเรา (น้ำเงิน)"></button><button class="sw${PIN.side==='r'?' on':''}" data-s="r" style="--c:#d6261c" aria-label="ฝ่ายข้าศึก สีแดง" title="ข้าศึก (แดง)"></button><span class="sep"></span>`
-    +Object.keys(USYM).map(k=>`<button class="ub${PIN.sym===k?' on':''}" data-u="${k}" aria-label="${USYM[k]}" title="${USYM[k]}"></button>`).join('')+'<button class="pb" id="palclr">ลบทั้งหมด</button><span class="pl phint" style="flex-basis:100%">แตะแผนที่เพื่อวาง · แตะเครื่องหมายเดิมเพื่อลบ</span>';
+    +Object.keys(USYM).map(k=>`<button class="ub${PIN.sym===k?' on':''}" data-u="${k}" aria-label="${USYM[k]}" title="${USYM[k]}"></button>`).join('')+'<button class="pb" id="palundo2">ลบอันล่าสุด</button><button class="pb" id="palclr">ลบทั้งหมด</button><span class="pl phint" style="flex-basis:100%">แตะแผนที่เพื่อวาง · แตะเครื่องหมายเดิมเพื่อลบ</span>';
   PAL.querySelectorAll('.ub').forEach(b=>{b.appendChild(unitIcon(b.dataset.u,PIN.side));b.onclick=()=>{PIN.sym=b.dataset.u;palette(1);};});
   PAL.querySelectorAll('.sw').forEach(b=>b.onclick=()=>{PIN.side=b.dataset.s;palette(1);});
-  $('#palclr').onclick=()=>{UNITS.length=0;requestDraw();};}
+  $('#palundo2').onclick=()=>{UNITS.pop();requestDraw();};$('#palclr').onclick=()=>{UNITS.length=0;requestDraw();};}
 function unitTap(m){const r=18/VT.z;const k=UNITS.findIndex(u=>hyp(u.x-m.x,u.y-m.y)<r);if(k>=0)UNITS.splice(k,1);else UNITS.push({x:m.x,y:m.y,sym:PIN.sym,side:PIN.side});requestDraw();}
 
 
@@ -419,7 +537,9 @@ const NET={last:0,status:''};
 const netURL=()=>String((window.LNAV_CONFIG&&window.LNAV_CONFIG.SCRIPT_URL)||'').trim();
 function outbox(){try{return JSON.parse(localStorage.getItem('lnav-outbox')||'[]')||[];}catch(e){return[];}}
 function saveOutbox(a){try{localStorage.setItem('lnav-outbox',JSON.stringify(a.slice(-40)));}catch(e){}}
-function netSend(p){const box=outbox().filter(x=>x.key!==p.key);box.push(p);saveOutbox(box);return netFlush();}
+function netSend(p){if(CFG.web&&ROOM.code&&ROOM.state==='open'){p=Object.assign({},p,{room:ROOM.code,key:p.key+'@'+ROOM.code});}
+  else if(CFG.web&&ROOM.state&&ROOM.state!=='none'&&ROOM.state!=='open')return Promise.resolve('locked');
+  const box=outbox().filter(x=>x.key!==p.key);box.push(p);saveOutbox(box);return netFlush();}
 let netBusy=null;
 function netFlush(){if(netBusy)return netBusy;const u=netURL();
   if(!u){NET.status='nourl';netNotify();return Promise.resolve('nourl');}
@@ -432,16 +552,141 @@ function netText(){if(!netURL())return'ครูฝึกยังไม่ไ�
   return NET.last?`ส่งคะแนนถึงครูฝึกแล้ว ✓ ${new Date(NET.last).toLocaleTimeString('th-TH')}`:'คะแนนจะส่งถึงครูฝึกอัตโนมัติทุกครั้งที่จบโมดูล/ภารกิจ';}
 if(CFG.web){window.addEventListener('online',()=>netFlush());setTimeout(()=>{if(outbox().length)netFlush();},2500);}
 
+/* ---------- rooms: class code + open/close window (time from the Google server) ---------- */
+const ROOM={code:'',info:null,off:0,state:'',t1:0,t2:0,busy:false};
+function roomLoad(){try{return JSON.parse(localStorage.getItem('lnav-room')||'null');}catch(e){return null;}}
+function roomSave(o){try{if(o)localStorage.setItem('lnav-room',JSON.stringify(o));else localStorage.removeItem('lnav-room');}catch(e){}}
+function roomMode(v){try{if(v)localStorage.setItem('lnav-roommode',v);return localStorage.getItem('lnav-roommode')||'';}catch(e){return'';}}
+const srvNow=()=>Date.now()+ROOM.off;
+const roomEsc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function roomTime(ms){if(!ms)return'-';const d=new Date(ms),t=d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.';
+  const n=new Date(srvNow());return d.toDateString()===n.toDateString()?'วันนี้ '+t:d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})+' '+t;}
+function roomLeft(ms){let s=Math.max(0,Math.round((ms-srvNow())/1000));const h=Math.floor(s/3600),m=Math.floor(s%3600/60);s%=60;
+  return h?`${h} ชม. ${m} นาที`:m?`${m} นาที ${s} วินาที`:`${s} วินาที`;}
+function roomStyle(){if(document.getElementById('roomcss'))return;const st=document.createElement('style');st.id='roomcss';
+  st.textContent=`#roomgate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(18,22,15,.94);color:#e9eddf;font-family:"IBM Plex Sans Thai",system-ui,sans-serif}
+#roomgate .rg{width:min(420px,100%);background:#1f261c;border:1px solid #3a4632;border-radius:16px;padding:22px 20px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+#roomgate h2{font-family:"Chakra Petch","IBM Plex Sans Thai",sans-serif;font-size:22px;margin:4px 0 6px}
+#roomgate p{margin:6px 0;color:#c9d2bd;line-height:1.55}#roomgate .big{font-size:40px;line-height:1}
+#roomgate input{width:100%;font:600 22px/1.2 "Chakra Petch",monospace;text-align:center;letter-spacing:.08em;text-transform:uppercase;padding:12px;border-radius:10px;border:1px solid #56634b;background:#12160f;color:#fff;margin:10px 0 4px}
+#roomgate button{font:600 16px "IBM Plex Sans Thai",sans-serif;border-radius:10px;padding:11px 16px;margin:6px 4px 0;border:1px solid #56634b;background:#2b3526;color:#e9eddf;cursor:pointer}
+#roomgate button.go{background:#8fb06f;color:#111;border-color:#8fb06f;width:100%;margin:8px 0 0}
+#roomgate .err{color:#ff9a8a;min-height:1.4em}#roomgate .tm{font-size:15px;background:#12160f;border-radius:10px;padding:8px 10px;margin:10px 0;color:#e9eddf}
+#roomgate .cd{font:600 26px "Chakra Petch",monospace;color:#f0b03a;margin:6px 0}
+#roomchip{white-space:nowrap}#roomchip small{opacity:.75;font-weight:400}`;document.head.appendChild(st);}
+function roomGate(state,msg){roomStyle();ROOM.state=state;let g=document.getElementById('roomgate');
+  if(!g){g=document.createElement('div');g.id='roomgate';g.setAttribute('role','dialog');g.setAttribute('aria-modal','true');document.body.appendChild(g);}
+  const I=ROOM.info||{},nm=I.name?`<p>${roomEsc(I.name)}</p>`:'',chg='<button id="rgchg">เปลี่ยนห้อง</button>';
+  let h='';
+  if(state==='check')h='<div class="big">⏳</div><h2>กำลังตรวจห้องฝึก…</h2><p>ใช้เวลาจากเซิร์ฟเวอร์ของครูฝึก</p>';
+  else if(state==='ask')h=`<div class="big">🏫</div><h2>เข้าห้องฝึก</h2><p>กรอกรหัสห้องที่ครูฝึกประกาศ</p><input id="rgcode" maxlength="20" autocomplete="off" spellcheck="false" placeholder="เช่น A1" value="${roomEsc(msg&&msg.code||'')}" aria-label="รหัสห้อง"><div class="err" id="rgerr">${roomEsc(msg&&msg.err||'')}</div><button class="go" id="rggo">เข้าห้อง</button>${ROOM.code&&ROOM.prev==='open'?'<button id="rgback">กลับห้องเดิม</button>':''}`;
+  else if(state==='notyet')h=`<div class="big">🔒</div><h2>ห้อง ${roomEsc(ROOM.code)} ยังไม่เปิด</h2>${nm}<div class="tm">เปิด ${roomTime(I.open)}${I.close?'<br>ปิด '+roomTime(I.close):''}</div><p>จะเปิดในอีก</p><div class="cd" id="rgcd">${I.open?roomLeft(I.open):'-'}</div><p style="font-size:14px">หน้านี้จะเปิดให้เองเมื่อถึงเวลา</p>${chg}`;
+  else if(state==='closed')h=`<div class="big">⛔</div><h2>ห้อง ${roomEsc(ROOM.code)} ปิดแล้ว</h2>${nm}<div class="tm">${I.open?'เปิด '+roomTime(I.open)+'<br>':''}ปิด ${I.close?roomTime(I.close):'(ครูฝึกสั่งปิด)'}</div><p>คะแนนที่ทำไว้ก่อนปิดส่งถึงครูฝึกแล้ว</p><div class="err" id="rgnet"></div>${chg}`;
+  else if(state==='offline')h=`<div class="big">📶</div><h2>ยังตรวจห้องไม่ได้</h2><p>ต้องต่ออินเทอร์เน็ตเพื่อตรวจเวลาเปิด-ปิดห้องฝึก</p><button class="go" id="rgretry">ลองอีกครั้ง</button>${chg}`;
+  g.innerHTML='<div class="rg">'+h+'</div>';g.hidden=false;
+  const q=id=>document.getElementById(id);
+  if(q('rgchg'))q('rgchg').onclick=()=>{ROOM.prev=ROOM.state;roomGate('ask',{code:''});};
+  if(q('rgback'))q('rgback').onclick=()=>roomCheck(ROOM.code);
+  if(q('rgretry'))q('rgretry').onclick=()=>{roomGate('check');roomCheck(ROOM.code);};
+  if(q('rgnet'))netFlush().then(s=>{const e=q('rgnet');if(e&&s==='pending')e.textContent='ยังมีคะแนนค้างส่ง ต่ออินเทอร์เน็ตแล้วเปิดหน้านี้ไว้สักครู่';});
+  if(q('rggo')){const inp=q('rgcode'),go=()=>{const c=inp.value.trim().toUpperCase();if(!c){q('rgerr').textContent='กรอกรหัสห้องก่อน';return;}q('rggo').disabled=true;q('rggo').textContent='กำลังตรวจ…';roomCheck(c,true);};
+    q('rggo').onclick=go;inp.addEventListener('keydown',e=>{if(e.key==='Enter')go();});setTimeout(()=>inp.focus(),50);}
+  roomTick();}
+function roomHide(){const g=document.getElementById('roomgate');if(g)g.hidden=true;ROOM.prev='';}
+function roomChip(){const m=document.querySelector('header .mission');if(!m)return;let c=document.getElementById('roomchip');
+  if(ROOM.state!=='open'||!ROOM.code){if(c)c.remove();return;}
+  if(!c){c=document.createElement('button');c.id='roomchip';c.className='btn';c.onclick=()=>{ROOM.prev='open';roomGate('ask',{code:''});};m.insertBefore(c,m.firstChild);}
+  const I=ROOM.info||{};c.innerHTML=`ห้อง ${roomEsc(ROOM.code)}${I.close?` <small>ปิด ${new Date(I.close).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</small>`:''}`;
+  c.title=(I.name?I.name+' · ':'')+(I.close?'ปิด '+roomTime(I.close):'ไม่กำหนดเวลาปิด')+' · แตะเพื่อเปลี่ยนห้อง';}
+function roomMission(m){const i=document.getElementById('code'),b=document.getElementById('gen');if(!i)return;
+  if(m){m=String(m).trim().toUpperCase();i.readOnly=true;i.title='รหัสภารกิจกำหนดโดยห้องฝึก';if(b)b.disabled=true;if(i.value!==m){i.value=m;if(b){b.disabled=false;b.click();b.disabled=true;}}}
+  else{i.readOnly=false;i.title='';if(b)b.disabled=false;}}
+function roomApply(j){ROOM.off=(+j.now||Date.now())-Date.now();ROOM.code=j.code;ROOM.info=j;roomSave({code:j.code,name:j.name,open:j.open,close:j.close,status:j.status,mission:j.mission,off:ROOM.off,at:Date.now()});
+  if(j.status==='open'){const was=ROOM.state==='open'&&ROOM.joined===j.code;roomHide();ROOM.state='open';roomMission(j.mission);idGate();
+    if(!was){ROOM.joined=j.code;setTimeout(()=>{try{if(typeof window.onRoomJoin==='function')window.onRoomJoin();}catch(e){}},2500);}}else{roomMission('');roomGate(j.status==='notyet'?'notyet':'closed');}roomChip();roomTick();}
+/* GET JSON from the score server: fetch first, JSONP fallback (some phones block the cross-site redirect of Apps Script) */
+function getJSON(url,ms){ms=ms||12000;
+  const viaFetch=()=>Promise.race([fetch(url,{cache:'no-store'}).then(r=>r.json()),new Promise((_,rj)=>setTimeout(()=>rj(new Error('timeout')),ms))]);
+  const viaScript=()=>new Promise((res,rj)=>{const cb='lnavcb'+Date.now().toString(36)+Math.floor(Math.random()*1e6);const sc=document.createElement('script');let done=false;
+    const fin=(v,e)=>{if(done)return;done=true;try{delete window[cb];}catch(x){window[cb]=undefined;}sc.remove();e?rj(e):res(v);};
+    window[cb]=v=>fin(v);sc.onerror=()=>fin(null,new Error('jsonp'));setTimeout(()=>fin(null,new Error('timeout')),ms);
+    sc.src=url+(url.includes('?')?'&':'?')+'callback='+cb;document.head.appendChild(sc);});
+  return viaFetch().catch(()=>viaScript());}
+async function roomCheck(code,typed){const u=netURL();if(!CFG.web||!u)return;if(ROOM.busy)return;ROOM.busy=true;let j=null;
+  for(let k=0;k<2&&!j;k++){try{j=await getJSON(u+(u.includes('?')?'&':'?')+'action=room&code='+encodeURIComponent(code||'')+'&t='+Date.now());}catch(e){j=null;}}
+  ROOM.busy=false;
+  if(!j||!j.ok){ // offline or server error: keep going only inside a window we already verified
+    const s=roomLoad();if(s&&s.status==='open'&&s.code){ROOM.code=s.code;ROOM.info=s;ROOM.off=s.off||0;
+      if(!s.close||srvNow()<s.close){if(ROOM.state!=='open'){ROOM.state='open';roomHide();roomMission(s.mission);roomChip();idGate();}roomTick();return;}
+      s.status='closed';ROOM.info=s;roomSave(s);roomGate('closed');roomChip();return;}
+    if(typed){roomGate('ask',{code,err:'ต่ออินเทอร์เน็ตไม่ได้ ลองอีกครั้ง'});return;}
+    if(roomMode()==='on')roomGate('offline');else{roomHide();idGate();roomTick();}return;}
+  if(!('status' in j)||j.status==='none'){roomMode('none');ROOM.state='none';ROOM.code='';roomSave(null);roomMission('');roomHide();roomChip();idGate();roomTick();return;}
+  roomMode('on');
+  if(j.status==='unknown'){ROOM.off=(+j.now||Date.now())-Date.now();if(code&&!typed)roomSave(null);roomMission('');ROOM.state='ask';roomChip();
+    roomGate('ask',{code:typed?code:'',err:code?`ไม่พบห้อง "${code}" ตรวจรหัสกับครูฝึกอีกครั้ง`:''});return;}
+  roomApply(j);}
+function roomTick(){clearInterval(ROOM.t1);clearTimeout(ROOM.t2);const I=ROOM.info||{};
+  if(ROOM.state==='notyet'){ROOM.t1=setInterval(()=>{const e=document.getElementById('rgcd');if(e&&I.open)e.textContent=roomLeft(I.open);
+      if(I.open&&srvNow()>=I.open-1000){clearInterval(ROOM.t1);roomCheck(ROOM.code);}},1000);
+    ROOM.t2=setTimeout(()=>roomCheck(ROOM.code),90000);}
+  else if(ROOM.state==='open'){ROOM.t2=setTimeout(()=>roomCheck(ROOM.code),90000);
+    if(I.close){const w=I.close-srvNow();if(w<90000)ROOM.t2=setTimeout(()=>{netFlush();roomCheck(ROOM.code);},Math.max(500,w+1500));}}
+  else if(ROOM.state==='closed')ROOM.t2=setTimeout(()=>roomCheck(ROOM.code),120000);
+  else if(ROOM.state==='none'||ROOM.state==='')ROOM.t2=setTimeout(()=>roomCheck(ROOM.code),120000);}
+function roomInit(){if(!CFG.web)return;if(!netURL()){idGate();return;}const s=roomLoad();
+  if(s&&s.code){ROOM.code=s.code;ROOM.info=s;ROOM.off=s.off||0;}
+  if(roomMode()==='on')roomGate('check');
+  roomCheck(ROOM.code);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ROOM.state!=='ask')roomCheck(ROOM.code);});}
+
+/* ---------- identity (rank-name + number) and restore from the instructor's sheet ---------- */
+function toast(msg,ms){let t=document.getElementById('lnavtoast');if(!t){t=document.createElement('div');t.id='lnavtoast';t.setAttribute('role','status');
+    t.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:9998;max-width:min(92vw,460px);background:#1f261c;color:#e9eddf;border:1px solid #8fb06f;border-radius:12px;padding:10px 14px;font:500 14.5px/1.45 "IBM Plex Sans Thai",sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35);transition:opacity .3s';document.body.appendChild(t);}
+  t.innerHTML=msg;t.style.opacity='1';t.hidden=false;clearTimeout(t._h);t._h=setTimeout(()=>{t.style.opacity='0';setTimeout(()=>{t.hidden=true;},350);},ms||4500);}
+function lsG(k){try{return localStorage.getItem(k)||'';}catch(e){return'';}}
+function lsS(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+async function restoreFromServer(name,sid,quiet){const u=netURL();if(!CFG.web||!u||!name)return false;
+  try{const j=await getJSON(u+(u.includes('?')?'&':'?')+'action=resume&kind='+(window.APPKIND||'app')+'&set='+(CFG.short?'S':'F')+'&name='+encodeURIComponent(name)+'&sid='+encodeURIComponent(sid||'')+'&t='+Date.now());if(!j||!j.ok||!j.found||!j.data)return false;const n=typeof window.onRestore==='function'?window.onRestore(j.data):0;
+    if(n&&!quiet)toast(`กู้คืนผลการฝึกเดิมจากระบบแล้ว ✓ (${n} รายการ)`);return n>0;}catch(e){return false;}}
+function idGate(){if(!CFG.web||lsG('lnav-name').trim())return;if(document.getElementById('idgate'))return;roomStyle();
+  const g=document.createElement('div');g.id='roomgate';g.className='idgate';g.setAttribute('role','dialog');g.setAttribute('aria-modal','true');
+  g.innerHTML=`<div class="rg" id="idgate"><div class="big">🪖</div><h2>ข้อมูลผู้รับการฝึก</h2><p>กรอกครั้งเดียว เครื่องจะจำไว้ ถ้าหลุดหรือเปลี่ยนเครื่อง กรอกชื่อและเลขที่เดิม ระบบจะดึงผลที่เคยทำกลับมาให้</p>
+    <input id="idname" maxlength="60" autocomplete="name" placeholder="ยศ ชื่อ-สกุล" style="letter-spacing:0;text-transform:none;font:600 18px 'IBM Plex Sans Thai',sans-serif" aria-label="ยศ ชื่อ-สกุล">
+    <input id="idsid" maxlength="20" inputmode="numeric" autocomplete="off" placeholder="เลขที่" style="letter-spacing:0;font:600 18px 'IBM Plex Sans Thai',sans-serif" aria-label="เลขที่">
+    <div class="err" id="iderr"></div><button class="go" id="idgo">เริ่มฝึก</button></div>`;
+  document.body.appendChild(g);const q=id=>document.getElementById(id);setTimeout(()=>q('idname').focus(),60);
+  const go=async()=>{const nm=q('idname').value.replace(/\s+/g,' ').trim(),sd=q('idsid').value.trim();if(nm.length<3){q('iderr').textContent='กรอกยศ ชื่อ-สกุล';return;}if(!sd){q('iderr').textContent='กรอกเลขที่';return;}
+    lsS('lnav-name',nm);lsS('lnav-sid',sd);try{if(typeof window.onIdentity==='function')window.onIdentity(nm,sd);}catch(e){}
+    q('idgo').disabled=true;q('idgo').textContent='กำลังตรวจผลเดิม…';const ok=await restoreFromServer(nm,sd,true);g.remove();
+    toast(ok?`ยินดีต้อนรับ ${esc(nm)} · ดึงผลการฝึกเดิมกลับมาแล้ว ✓`:`ยินดีต้อนรับ ${esc(nm)}`);};
+  q('idgo').onclick=go;q('idsid').addEventListener('keydown',e=>{if(e.key==='Enter')go();});q('idname').addEventListener('keydown',e=>{if(e.key==='Enter')q('idsid').focus();});}
+/* scanned inside LINE / Facebook: their in-app browsers keep separate storage, so progress looks lost next time */
+(function(){const ua=navigator.userAgent||'';if(/\bLine\//i.test(ua)&&!/openExternalBrowser=1/.test(location.search)){location.replace(location.href.split('#')[0]+(location.search?'&':'?')+'openExternalBrowser=1');return;}
+  if(/FBAN|FBAV|FB_IAB|Instagram|Messenger/i.test(ua))setTimeout(()=>toast('เปิดอยู่ในแอปโซเชียล ข้อมูลอาจหายเมื่อปิด · กด ⋯ แล้วเลือก "เปิดในเบราว์เซอร์" (Chrome/Safari)',9000),800);
+  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});}catch(e){}})();
+
+const roomOK=()=>!(CFG.web&&netURL())||ROOM.state==='open'||ROOM.state==='none'||ROOM.state==='';
+if(CFG.web)setTimeout(roomInit,0);
+
+/* ---------- route lines: SP -> pin 1 -> pin 2 ... (pencil lines that follow the pins) ---------- */
+const ROUTE={on:false};
+function routeBtn(){return`<button class="btn" id="rte" aria-pressed="${ROUTE.on}" title="ลากเส้นจาก SP ไปหมุด 1 แล้วต่อหมุด 2, 3 … ตามลำดับ (เส้นขยับตามหมุดอัตโนมัติ)">เส้นเชื่อม SP→หมุด</button>`;}
+function routeApply(sp,pins){const keep=(O.lines||[]).filter(L=>!L.route);if(!ROUTE.on||!pins.length){O.lines=keep;return;}
+  const pts=[sp,...pins],legs=pts.slice(1).map((p,k)=>({a:{x:pts[k].x,y:pts[k].y},b:{x:p.x,y:p.y},color:'#1f5fbf',route:true,lab:`${k?'หมุด '+k:'SP'} → ${k+1}`}));O.lines=legs.concat(keep);}
+function bindRoute(redraw){const b=document.getElementById('rte');if(b)b.addEventListener('click',()=>{ROUTE.on=!ROUTE.on;b.setAttribute('aria-pressed',ROUTE.on);redraw(ROUTE.on?'เส้นเชื่อม SP → หมุด 1 → หมุด 2 … (สีน้ำเงิน) ใช้ "วางขอบเข็มทิศตามเส้น" หรือวางแผ่นวัดมุมที่ต้นเส้นเพื่อวัดมุมและระยะแต่ละขา':'ซ่อนเส้นเชื่อมหมุดแล้ว');});}
+
 /* ---------- pencil line tool ---------- */
 const DRAW={on:false,color:'#2a2a2a'};
 function snapPt(m){const cand=[];(O.marks||[]).forEach(k=>cand.push(k));(O.lines||[]).forEach(L=>{cand.push(L.a);cand.push(L.b);});(W?W.landmarks:[]).forEach(l=>cand.push(l));
   let best=m,bd=14/VT.z;for(const k of cand){const d=hyp(k.x-m.x,k.y-m.y);if(d<bd){bd=d;best={x:k.x,y:k.y};}}return{x:best.x,y:best.y};}
-function drawBtns(){return`<button class="btn" id="dl" aria-pressed="${DRAW.on}">ขีดเส้นดินสอ</button><button class="btn" id="dr" aria-pressed="${!!O.ruler}">วางขอบเข็มทิศตามเส้น</button><button class="btn" id="dx">ลบเส้น</button><button class="btn" id="du" aria-pressed="${PIN.on}">เครื่องหมายทางทหาร</button>`;}
+function drawBtns(){return`<button class="btn" id="dl" aria-pressed="${DRAW.on}">ขีดเส้นดินสอ</button><button class="btn" id="dr" aria-pressed="${!!O.ruler}">วางขอบเข็มทิศตามเส้น</button><button class="btn" id="dxl">ลบเส้นล่าสุด</button><button class="btn" id="dx">ลบเส้นทั้งหมด</button><button class="btn" id="du" aria-pressed="${PIN.on}">เครื่องหมายทางทหาร</button>`;}
 function bindDraw(){const b=document.getElementById('dl'),u=document.getElementById('du');
   if(b)b.addEventListener('click',()=>{DRAW.on=!DRAW.on;if(DRAW.on){PIN.on=false;if(u)u.setAttribute('aria-pressed',false);}b.setAttribute('aria-pressed',DRAW.on);palette();});
   if(u)u.addEventListener('click',()=>{PIN.on=!PIN.on;if(PIN.on){DRAW.on=false;if(b)b.setAttribute('aria-pressed',false);}u.setAttribute('aria-pressed',PIN.on);palette();});palette();
   const r=document.getElementById('dr');if(r)r.addEventListener('click',()=>{const L=(O.lines||[]).slice(-1)[0];if(O.ruler||!L)O.ruler=null;else O.ruler={a:L.a,b:L.b};r.setAttribute('aria-pressed',!!O.ruler);requestDraw();});
-  const x=document.getElementById('dx');if(x)x.addEventListener('click',()=>{O.lines=[];O.ruler=null;if(r)r.setAttribute('aria-pressed',false);requestDraw();});}
+  const xl=document.getElementById('dxl');if(xl)xl.addEventListener('click',()=>{const arr=O.lines||[];let k=arr.length-1;while(k>=0&&arr[k].route)k--;const L=k>=0?arr.splice(k,1)[0]:null;if(L&&O.ruler&&O.ruler.a===L.a&&O.ruler.b===L.b){O.ruler=null;if(r)r.setAttribute('aria-pressed',false);}requestDraw();});
+  const x=document.getElementById('dx');if(x)x.addEventListener('click',()=>{O.lines=[];ROUTE.on=false;const rb=document.getElementById('rte');if(rb)rb.setAttribute('aria-pressed',false);O.ruler=null;if(r)r.setAttribute('aria-pressed',false);requestDraw();});}
 
 /* ---------- map interaction ---------- */
 const ptrs=new Map();let G=null;
@@ -449,11 +694,11 @@ function relXY(e){const r=mapC.getBoundingClientRect();return{x:e.clientX-r.left
 mapC.addEventListener('pointerdown',e=>{mapC.setPointerCapture(e.pointerId);const p=relXY(e);ptrs.set(e.pointerId,p);
   if(ptrs.size===1){const m=M2(p.x,p.y);
     if(DRAW.on){const a=snapPt(m);G={type:'draw',sx:p.x,sy:p.y,a,moved:false};}
-    else G=insidePlate(m)?{type:'plate',sx:p.x,sy:p.y,px:O.plate.x,py:O.plate.y,moved:false}:{type:'pan',sx:p.x,sy:p.y,cx:V.cx,cy:V.cy,moved:false};}
-  else if(ptrs.size===2){O.tmpLine=null;const[a,b]=[...ptrs.values()];const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};G={type:'pinch',d:hyp(a.x-b.x,a.y-b.y),z:V.z,anchor:M2(mid.x,mid.y),moved:true};}});
+    else G=insidePlate(m)&&PLOCK.mode!=='all'?{type:'plate',sx:p.x,sy:p.y,px:O.plate.x,py:O.plate.y,moved:false}:{type:'pan',sx:p.x,sy:p.y,cx:V.cx,cy:V.cy,moved:false};}
+  else if(ptrs.size===2){O.tmpLine=null;if(G&&G.type==='plate'&&O.plate){O.plate.x=G.px;O.plate.y=G.py;}const[a,b]=[...ptrs.values()];const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};G={type:'pinch',d:hyp(a.x-b.x,a.y-b.y),z:V.z,anchor:M2(mid.x,mid.y),moved:true};}});
 mapC.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId)||!G)return;const p=relXY(e);ptrs.set(e.pointerId,p);
   if(G.type==='draw'){if(hyp(p.x-G.sx,p.y-G.sy)>6)G.moved=true;if(G.moved){G.b=snapPt(M2(p.x,p.y));O.tmpLine={a:G.a,b:G.b,color:DRAW.color};requestDraw();}}
-  else if(G.type==='plate'){const dx=p.x-G.sx,dy=p.y-G.sy;if(hyp(dx,dy)>6)G.moved=true;if(G.moved&&O.plate){O.plate.x=G.px+dx/V.z;O.plate.y=G.py-dy/V.z;requestDraw();}}
+  else if(G.type==='plate'){const dx=p.x-G.sx,dy=p.y-G.sy;if(hyp(dx,dy)>6)G.moved=true;if(G.moved&&O.plate){if(PLOCK.mode!=='h')O.plate.x=G.px+dx/V.z;if(PLOCK.mode!=='v')O.plate.y=G.py-dy/V.z;requestDraw();}}
   else if(G.type==='pan'){const dx=p.x-G.sx,dy=p.y-G.sy;if(hyp(dx,dy)>6)G.moved=true;if(G.moved){V.cx=clamp(G.cx-dx/V.z,-600,MAP+600);V.cy=clamp(G.cy+dy/V.z,-600,MAP+600);requestDraw();}}
   else if(G.type==='pinch'&&ptrs.size>=2){const[a,b]=[...ptrs.values()];const d=hyp(a.x-b.x,a.y-b.y),mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
     V.z=clamp(G.z*d/G.d,fitZoom()*0.9,zMax());const w=mapC.clientWidth,h=mapC.clientHeight;V.cx=G.anchor.x-(mid.x-w/2)/V.z;V.cy=G.anchor.y+(mid.y-h/2)/V.z;requestDraw();}});
@@ -471,7 +716,7 @@ $('#zout').onclick=()=>setView(V.cx,V.cy,V.z/1.6);
 $('#zfit').onclick=fitView;
 
 /* ---------- lensatic compass (model of the issued compass) ---------- */
-const C={x:0,y:0,h0:0,heading:0,disp:0,vel:0,far:null,near:null,lms:[],mode:'top',lum:0,night:false,hl:null};
+const C={x:0,y:0,h0:0,heading:0,disp:0,vel:0,far:null,near:null,lms:[],mode:'top',lum:0,night:false,hl:null};C.big=(window.innerWidth<700);try{const v=localStorage.getItem('lnav-cbig');if(v)C.big=v==='1';}catch(e){}
 function computePano(x,y){
   const h0=W.elev(x,y)+1.7,far=new Float32Array(720),near=new Float32Array(720);
   for(let k=0;k<720;k++){const a=k*0.5*Math.PI/180,sx=Math.sin(a),sy=Math.cos(a);let mf=-1,mn=-1;
@@ -488,20 +733,31 @@ function stepCard(){const tgt=magHeading();const d=angDiff(tgt,C.disp);C.vel=C.v
 let ACx=null;function clickSnd(){try{ACx=ACx||new(window.AudioContext||window.webkitAudioContext)();const o=ACx.createOscillator(),g=ACx.createGain();o.type='square';o.frequency.value=2400;g.gain.setValueAtTime(0.05,ACx.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,ACx.currentTime+0.03);o.connect(g);g.connect(ACx.destination);o.start();o.stop(ACx.currentTime+0.04);}catch(e){}}
 function drawPano(){
   const c=panoX,w=panoC.clientWidth,h=panoC.clientHeight;if(!w||!C.far)return;c.setTransform(DPR,0,0,DPR,0,0);
-  const ppd=w/FOV,y0=h*0.6;
+  const ppd=w/FOV,y0=h*0.7;
+  // vertical exaggeration so distant hills stand out on small phone screens (azimuths are unchanged)
+  if(C.vexFor!==C.far){let mx=0;for(let k=0;k<C.far.length;k++)if(C.far[k]>mx)mx=C.far[k];C.maxDeg=mx*180/Math.PI;C.vexFor=C.far;}
+  const VEX=clamp((y0*0.75)/(Math.max(C.maxDeg,0.5)*ppd),1,5);
   const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#7fb0d4');g.addColorStop(.6,'#d8e6ec');g.addColorStop(1,'#d8e6ec');c.fillStyle=g;c.fillRect(0,0,w,h);
-  const layer=(arr,col)=>{c.fillStyle=col;c.beginPath();c.moveTo(0,h);for(let px=0;px<=w;px+=2){const az=C.heading+(px-w/2)/ppd;const yy=y0-interpH(arr,az)*180/Math.PI*ppd;c.lineTo(px,yy);}c.lineTo(w,h);c.closePath();c.fill();};
+  const layer=(arr,col)=>{c.fillStyle=col;c.beginPath();c.moveTo(0,h);for(let px=0;px<=w;px+=2){const az=C.heading+(px-w/2)/ppd;const yy=y0-interpH(arr,az)*180/Math.PI*ppd*VEX;c.lineTo(px,yy);}c.lineTo(w,h);c.closePath();c.fill();};
   layer(C.far,'#93a68c');layer(C.near,'#5c7150');
-  for(const L of C.lms){if(!L.vis)continue;const da=angDiff(L.az,C.heading);if(Math.abs(da)>FOV/2+3)continue;const px=w/2+da*ppd,py=y0-L.ang*180/Math.PI*ppd;
+  for(const L of C.lms){if(!L.vis)continue;const da=angDiff(L.az,C.heading);if(Math.abs(da)>FOV/2+3)continue;const px=w/2+da*ppd,py=y0-L.ang*180/Math.PI*ppd*VEX;
     c.save();c.strokeStyle='#1d1d1d';c.fillStyle='#1d1d1d';c.lineWidth=1.4;
     if(L.kind==='tower'){c.beginPath();c.moveTo(px-5,py+22);c.lineTo(px,py);c.lineTo(px+5,py+22);c.stroke();c.fillStyle='#e0332a';c.beginPath();c.arc(px,py,2.4,0,7);c.fill();}
     else if(L.kind==='temple'){c.beginPath();c.moveTo(px-7,py+14);c.lineTo(px,py);c.lineTo(px+7,py+14);c.closePath();c.fillStyle='#f2f0e6';c.fill();c.stroke();}
     else if(C.labels!==false){c.beginPath();c.moveTo(px,py+1);c.lineTo(px,py-12);c.stroke();c.fillStyle='#e0332a';c.beginPath();c.moveTo(px,py-12);c.lineTo(px+8,py-9);c.lineTo(px,py-6);c.fill();}
+    else if(L.kind==='peak'){c.fillStyle='#e0332a';c.strokeStyle='#fff';c.lineWidth=1.2;c.beginPath();c.moveTo(px,py-3);c.lineTo(px+5,py-11);c.lineTo(px-5,py-11);c.closePath();c.fill();c.stroke();}
     if(C.labels===false){c.restore();continue;}
     c.font='600 12px "IBM Plex Sans Thai",sans-serif';c.textAlign='center';c.lineWidth=3;c.strokeStyle='rgba(255,255,255,.85)';const ty=L.kind==='peak'?py-18:py-8;c.strokeText(L.name,px,ty);c.fillStyle='#14180f';c.fillText(L.name,px,ty);c.restore();}
+  if(C.labels!==false&&!C.night){// names of visible landmarks just outside the view, so the trainee knows which way to turn
+    const side={L:[],R:[]};for(const L of C.lms){if(!L.vis)continue;const da=angDiff(L.az,C.heading);if(Math.abs(da)<=FOV/2)continue;const tg=C.target===L.name;if(!tg&&Math.abs(da)>100)continue;(da<0?side.L:side.R).push({L,da:Math.abs(da)-(tg?1000:0),tg});}
+    c.save();c.font='600 12px "IBM Plex Sans Thai",sans-serif';c.textBaseline='middle';const base=h-(C.mode==='sight'?42:22);
+    for(const k of['L','R']){side[k].sort((a,b)=>a.da-b.da).slice(0,C.mode==='sight'?3:1).forEach((o,i)=>{const t=(k==='L'?'◀ ':'')+(o.tg?'หมุนไป ':'')+o.L.name+(k==='R'?' ▶':''),tw=c.measureText(t).width,yy=base-i*22,xx=k==='L'?6:w-tw-16;
+      c.fillStyle=o.tg?'#f2c200':'rgba(255,255,255,.85)';c.fillRect(xx,yy-10,tw+10,20);c.fillStyle='#14180f';c.fillText(t,xx+5,yy);});}
+    c.restore();}
   if(C.night){c.fillStyle='rgba(2,6,12,.86)';c.fillRect(0,0,w,h);}
-  if(C.mode==='sight'){// looking through the rear-sight slot at the front sighting wire
-    const sw=Math.max(44,w*0.14);c.fillStyle=C.labels===false?'rgba(16,18,14,.5)':'rgba(16,18,14,.82)';c.beginPath();c.rect(0,0,w,h);c.roundRect?c.roundRect(w/2-sw/2,-20,sw,h*0.92+20,sw/2):c.rect(w/2-sw/2,0,sw,h*0.92);c.fill('evenodd');
+  if(!C.night){c.save();c.font='600 11px "IBM Plex Sans Thai",sans-serif';c.textBaseline='top';c.textAlign='left';const t=`มุมมอง ${FOV}°`;c.fillStyle='rgba(20,24,18,.7)';c.fillRect(6,48,c.measureText(t).width+10,18);c.fillStyle='#e8eadf';c.fillText(t,11,51);c.restore();}
+  if(C.mode==='sight'&&!C.land){// looking through the rear-sight slot at the front sighting wire
+    const sw=Math.max(72,w*0.3);c.fillStyle=C.labels===false?'rgba(16,18,14,.32)':'rgba(16,18,14,.5)';c.beginPath();c.rect(0,0,w,h);c.roundRect?c.roundRect(w/2-sw/2,-20,sw,h*0.92+20,sw/2):c.rect(w/2-sw/2,0,sw,h*0.92);c.fill('evenodd');
     c.strokeStyle='#0b0b0b';c.lineWidth=2;c.beginPath();c.moveTo(w/2,0);c.lineTo(w/2,h*0.92);c.stroke();
     c.fillStyle=C.night?'#6dffb0':'#9fe8b8';c.shadowColor='#6dffb0';c.shadowBlur=C.night?10:4;for(const dx of[-sw*0.3,sw*0.3]){c.beginPath();c.arc(w/2+dx,h*0.78,2.6,0,7);c.fill();}c.shadowBlur=0;
     c.fillStyle='#9aa58f';c.font='500 11px "IBM Plex Sans Thai",sans-serif';c.textAlign='left';c.textBaseline='top';c.fillText('มองผ่านช่องเล็งหลัง: เส้นเล็ง → ที่หมาย',10,h-18);
@@ -531,17 +787,17 @@ function drawDial(){
   c.fillStyle=C.night?'#030504':'#141812';c.fillRect(0,0,w,h);
   const D=C.disp,night=C.night;PARTPOS={};
   if(C.mode==='sight'){// view through the magnifying lens of the rear sight
-    const rl=Math.min(w*0.3,h*0.36),lx=w/2,ly=h*0.47;
+    const rl=Math.max(30,Math.min(w*0.38,(h-30)/2.2)),lx=w/2,ly=Math.min(h*0.47,rl*1.08+4);
     c.fillStyle='#0c0d0c';c.beginPath();c.roundRect?c.roundRect(lx-rl*1.45,ly-rl*1.55,rl*2.9,rl*3.0,rl*0.5):c.rect(lx-rl*1.45,ly-rl*1.55,rl*2.9,rl*3.0);c.fill();
     c.save();c.beginPath();c.arc(lx,ly,rl,0,7);c.clip();c.fillStyle=night?'#020403':'#d9d7cf';c.fillRect(lx-rl,ly-rl,rl*2,rl*2);
     const Rb=rl*2.7;c.save();c.translate(lx,ly+Rb*0.74);c.rotate(-D*Math.PI/180);drawCard(c,Rb,night);c.restore();
     if(!night){c.strokeStyle='#050505';c.lineWidth=2;c.beginPath();c.moveTo(lx,ly-rl);c.lineTo(lx,ly+rl*0.55);c.stroke();}
     const gl=c.createRadialGradient(lx-rl*0.4,ly-rl*0.5,rl*0.05,lx,ly,rl);gl.addColorStop(0,'rgba(255,255,255,.35)');gl.addColorStop(.5,'rgba(255,255,255,.04)');gl.addColorStop(1,'rgba(0,0,0,.35)');c.fillStyle=gl;c.fillRect(lx-rl,ly-rl,rl*2,rl*2);
     c.restore();c.strokeStyle='#2b2b2b';c.lineWidth=3;c.beginPath();c.arc(lx,ly,rl,0,7);c.stroke();
-    c.fillStyle='#9aa58f';c.font='500 11px "IBM Plex Sans Thai",sans-serif';c.textAlign='center';c.textBaseline='top';c.fillText('มองผ่านช่องแว่นขยาย อ่านมุมใต้เส้นดัชนีสีดำ',lx,Math.min(h-16,ly+rl*1.5));
+    c.fillStyle='#9aa58f';c.font='500 11px "IBM Plex Sans Thai",sans-serif';c.textAlign='center';c.textBaseline='top';if(ly+rl+18<h)c.fillText('มองผ่านแว่นขยาย อ่านมุมใต้เส้นดัชนีสีดำ',lx,Math.min(h-15,ly+rl+6));
     return;}
   // top view: the compass held level in front of the body (body points to the direction faced)
-  const full=!!C.hl,R=full?Math.max(30,Math.min(w*0.3,(h-10)/4.8)):Math.max(40,Math.min(w*0.3,(h-20)/3.1)),cx=w/2,cy=full?R*2.6+4:h*0.55;
+  const full=!!C.hl,zoomD=!full&&!!C.big,R=full?Math.max(30,Math.min(w*0.3,(h-10)/4.8)):zoomD?Math.max(30,Math.min(w/2.5,(h-8)/2.34)):Math.max(30,Math.min(w*0.4,(h-14)/2.42)),cx=w/2,cy=full?R*2.6+4:zoomD?h/2:h/2+R*0.04;
   const OL='#4b5a35',OLd='#36422a';
   // cover (opened flat beyond the dial) with sighting wire and luminous dots
   c.fillStyle=night?'#050705':OL;c.beginPath();c.roundRect?c.roundRect(cx-R*0.82,cy-R*2.55,R*1.64,R*1.35,R*0.25):c.rect(cx-R*0.82,cy-R*2.55,R*1.64,R*1.35);c.fill();
@@ -583,10 +839,27 @@ const endCT=()=>{CT=null;};comp.addEventListener('pointerup',endCT);comp.addEven
 const turn=d=>{C.heading=wrap360(C.heading+d);requestDraw();};
 $('#tl2').onclick=()=>turn(-10);$('#tl1').onclick=()=>turn(-0.5);$('#tr1').onclick=()=>turn(0.5);$('#tr2').onclick=()=>turn(10);
 ['tl2','tl1','tr1','tr2','cmSight','cmTop','bzL','bzR'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('pointerdown',e=>e.stopPropagation());});
-function setCompMode(m){C.mode=m;const cp=$('#comp');if(cp)cp.style.gridTemplateRows=m==='top'?'30% 70%':'40% 60%';setTimeout(resize,0);const a=$('#cmSight'),b=$('#cmTop');if(a)a.setAttribute('aria-pressed',m==='sight');if(b)b.setAttribute('aria-pressed',m==='top');const z=$('#bzbar');if(z)z.hidden=m!=='top';requestDraw();}
+function compRows(m){const cp=$('#comp'),H=cp?cp.clientHeight:600,small=H<460;if(C.land)return '100% 0%';if(C.big)return m==='top'?'14% 86%':'38% 62%';return m==='top'?(small?'24% 76%':'30% 70%'):(small?'46% 54%':'52% 48%');}
+function setCompMode(m){C.mode=m;const cp=$('#comp');if(cp)cp.style.gridTemplateRows=compRows(m);setTimeout(resize,0);const a=$('#cmSight'),b=$('#cmTop');if(a)a.setAttribute('aria-pressed',m==='sight');if(b)b.setAttribute('aria-pressed',m==='top');const z=$('#bzbar');if(z)z.hidden=m!=='top';requestDraw();}
+(function(){const bar=$('#compbar');if(!bar)return;const d=document.createElement('div');d.className='seg';d.id='fovseg';
+  d.innerHTML='<button id="cbig" aria-pressed="'+(!!C.big)+'" aria-label="ขยายเข็มทิศให้ใหญ่ขึ้น">⤢ เข็มทิศใหญ่</button><button id="fovW" aria-label="มุมมองกว้างขึ้น เห็นภูเขารอบตัวมากขึ้น">◁ ภาพกว้าง</button><button id="fovN" aria-label="ซูมเข้า เห็นยอดเขาชัดขึ้น">ซูมเข้า ▷</button>';
+  bar.insertBefore(d,bar.children[1]||null);
+  const setF=i=>{FOVI=clamp(i,0,FOVS.length-1);FOV=FOVS[FOVI];$('#fovW').disabled=FOVI===FOVS.length-1;$('#fovN').disabled=FOVI===0;requestDraw();};
+  $('#cbig').onclick=()=>{C.big=!C.big;try{localStorage.setItem('lnav-cbig',C.big?'1':'0');}catch(e){}$('#cbig').setAttribute('aria-pressed',C.big);setCompMode(C.mode);};
+  $('#fovW').onclick=()=>setF(FOVI+1);$('#fovN').onclick=()=>setF(FOVI-1);
+  ['fovW','fovN','cbig'].forEach(id=>$('#'+id).addEventListener('pointerdown',e=>e.stopPropagation()));setF(FOVI);})();
+
+/* fold the compass away to look at the terrain (self-location: study the hills first, then read the compass) */
+(function(){const cp=$('#comp');if(!cp)return;C.land=false;const b=document.createElement('button');b.id='cfold';b.type='button';
+  b.style.cssText='position:absolute;right:8px;bottom:8px;z-index:5;border:1px solid rgba(255,255,255,.35);background:rgba(17,20,15,.82);color:#e9eddf;border-radius:99px;padding:7px 12px;font:600 13px "IBM Plex Sans Thai",sans-serif;cursor:pointer;touch-action:manipulation';
+  const lab=()=>{b.textContent=C.land?'▴ แสดงเข็มทิศ':'▾ ย่อเข็มทิศ · ดูพื้นที่';b.setAttribute('aria-pressed',C.land);};lab();
+  b.addEventListener('pointerdown',e=>e.stopPropagation());
+  b.onclick=()=>{C.land=!C.land;lab();setCompMode(C.mode);};cp.appendChild(b);
+  window.compLandReset=()=>{if(C.land){C.land=false;lab();}};})();
+window.addEventListener('resize',()=>{const cp=$('#comp');if(cp&&!cp.hidden)cp.style.gridTemplateRows=compRows(C.mode);});
 $('#cmSight').onclick=()=>setCompMode('sight');$('#cmTop').onclick=()=>setCompMode('top');
 $('#bzL').onclick=()=>{C.lum=wrap360(C.lum-3);clickSnd();requestDraw();};$('#bzR').onclick=()=>{C.lum=wrap360(C.lum+3);clickSnd();requestDraw();};
-function resetCompass(opts){opts=opts||{};C.night=!!opts.night;C.labels=opts.labels!==false;C.hl=opts.hl||null;if(opts.lum!=null)C.lum=opts.lum;setCompMode(opts.mode||'top');}
+function resetCompass(opts){opts=opts||{};C.target=opts.target||null;C.night=!!opts.night;C.labels=opts.labels!==false;C.hl=opts.hl||null;if(opts.lum!=null)C.lum=opts.lum;setCompMode(opts.mode||'top');}
 
 /* ---------- shared question banks (aligned with the lesson slides) ---------- */
 const TYPES={village:'หมู่บ้าน/อาคาร',temple:'วัด',school:'โรงเรียน',hospital:'โรงพยาบาล/สถานพยาบาล',tower:'เสาส่งวิทยุ',bridge:'สะพาน',spot:'จุดระดับความสูง',river:'แม่น้ำ',stream:'ลำห้วย/คลอง',swamp:'หนองน้ำ/บึง',pond:'บ่อน้ำ',road:'ถนนสายหลัก',road3:'ถนนสายรอง',forest:'ป่าไม้',orchard:'สวน/ไร่',paddy:'นาข้าว'};
@@ -614,7 +887,7 @@ function mapQuestions(nSym,nCont,nTer,nElev){const qs=[];
   for(const t of shuffle(Object.keys(TYPES))){if(qs.length>=nSym)break;const p=m1Point(t);if(p)qs.push({kind:'sym',t,p,ans:TYPES[t],pool:Object.values(TYPES)});}
   let k=0;for(const t of shuffle(Object.keys(CONTOURS))){if(k>=nCont)break;const a=W.samp[t];if(a&&a.length){qs.push({kind:'cont',t,p:pick(a),ans:CONTOURS[t],pool:Object.values(CONTOURS)});k++;}}
   k=0;for(const t of shuffle(Object.keys(TERRAIN))){if(k>=nTer)break;const p=terrainPoint(t);if(p){qs.push({kind:'ter',t,p,ans:TERRAIN[t],pool:Object.values(TERRAIN)});k++;}}
-  for(let i=0;i<nElev;i++){const p=randLand(400),c=Math.round(W.elev(p.x,p.y)/20)*20;const opts=shuffle([c,c-40,c+40,c+(Math.random()<.5?80:-80)]).map(v=>v+' ม.');qs.push({kind:'elev',p,ans:c+' ม.',opts});}
+  for(let i=0;i<nElev;i++){const p=randLand(400),c=Math.round(W.elev(p.x,p.y)/20)*20;const opts=shuffle([c,c-40,c+40,c+(RNG.f()<.5?80:-80)]).map(v=>v+' ม.');qs.push({kind:'elev',p,ans:c+' ม.',opts});}
   qs.forEach(q=>{if(!q.opts)q.opts=shuffle([q.ans,...shuffle(q.pool.filter(v=>v!==q.ans)).slice(0,3)]);});return shuffle(qs);}
 const QTEXT={sym:'สิ่งที่อยู่ในวงแดงคืออะไร?',cont:'เส้นชั้นความสูงตรงกลางวงแดงเป็นเส้นประเภทใด?',ter:'ภูมิประเทศตรงวงแดงมีลักษณะเป็นอะไร?',elev:'จุดกลางวงแดงสูงประมาณเท่าไร? (เส้นชั้นความสูงห่าง 20 ม.)'};
 const qZoom=q=>q.kind==='elev'?0.55:q.kind==='cont'?0.6:q.kind==='ter'?0.16:0.3;
@@ -669,9 +942,9 @@ function drawLeg(cv,k){const r=Math.min(window.devicePixelRatio||1,2);cv.width=8
 /* ---------- self-location drill: terrain association + resection with 1, 2 or 3 landmarks ---------- */
 function findStand(kind){
   for(let t=0;t<120;t++){let p,linear=null,ldir=0;
-    if(kind===1){const useStream=W.streams.length&&Math.random()<0.4;
+    if(kind===1){const useStream=W.streams.length&&RNG.f()<0.4;
       if(useStream){const s=pick(W.streams),i=(s.length*rnd(0.2,0.8))|0;if(!s[i+1])continue;p={x:s[i][0],y:s[i][1]};ldir=Math.atan2(s[i+1][0]-s[i][0],s[i+1][1]-s[i][1])*180/Math.PI;linear='ริมลำห้วย';}
-      else{const ri=(Math.random()*W.roads.length)|0,rd=W.roads[ri];if(!rd||rd.length<20)continue;const i=(rd.length*rnd(0.1,0.9))|0;if(!rd[i+1])continue;p={x:rd[i][0],y:rd[i][1]};ldir=Math.atan2(rd[i+1][0]-rd[i][0],rd[i+1][1]-rd[i][1])*180/Math.PI;linear=ri===2?'ถนนสายรอง':'ถนนสายหลัก';}
+      else{const ri=(RNG.f()*W.roads.length)|0,rd=W.roads[ri];if(!rd||rd.length<20)continue;const i=(rd.length*rnd(0.1,0.9))|0;if(!rd[i+1])continue;p={x:rd[i][0],y:rd[i][1]};ldir=Math.atan2(rd[i+1][0]-rd[i][0],rd[i+1][1]-rd[i][1])*180/Math.PI;linear=ri===2?'ถนนสายรอง':'ถนนสายหลัก';}
       if(p.x<500||p.y<500||p.x>MAP-500||p.y>MAP-500||W.isWater(p.x,p.y))continue;}
     else{p=randLand(700);}
     if(W.villages.some(v=>hyp(v.x-p.x,v.y-p.y)<350))continue;
@@ -689,7 +962,7 @@ function runFixDrill(o){
   O={rays:S.rays,lines:[],marks:[]};fitView();setStageView('comp',true);resetCompass({mode:'sight',labels:false});DRAW.on=false;
   const need=o.kind,lmOpts=W.landmarks.map((l,k)=>`<option value="${k}">${esc(lmLabel(l))}</option>`).join('');
   const drawMarks=()=>{O.marks=S.pin?[{x:S.pin.x,y:S.pin.y,kind:'pin',color:'#d6261c',label:'ตำแหน่งของฉัน'}]:[];requestDraw();};
-  tapHandler=(x,y)=>{if(DRAW.on)return;S.pin={x,y};drawMarks();const b=document.getElementById('fxok');if(b)b.disabled=S.sights.length<need;};
+  tapHandler=(x,y)=>{if(DRAW.on)return;S.pin={x,y};drawMarks();const b=document.getElementById('fxok');if(b)b.disabled=S.sights.length<need;const px=document.getElementById('fxpinx');if(px)px.disabled=false;};nudgeReg(()=>S.pin,()=>drawMarks());
   const how={1:'แบบหนึ่งที่หมาย: เล็งภูเขา 1 ลูก แล้วลากเส้นสกัดกลับ ตำแหน่งของคุณคือจุดที่เส้นตัดกับแนว'+(st.linear||'')+'ที่คุณยืนอยู่',2:'แบบสองที่หมาย: เล็งภูเขา 2 ลูกที่ห่างกันอย่างน้อย 30° ลากเส้นสกัดกลับทั้งสองเส้น จุดตัดคือตำแหน่งของคุณ',3:'แบบสามที่หมาย: เล็ง 3 ลูก เส้นสกัดกลับจะเกิดสามเหลี่ยมความคลาดเคลื่อน ปักตำแหน่งกลางสามเหลี่ยม (ถ้าสามเหลี่ยมใหญ่ ให้ตรวจการเล็งใหม่)'}[need];
   const ui=msg=>{setSheet(`<div class="eyebrow">${esc(o.title)}</div><h3 style="margin-top:4px">หาที่อยู่ของตนเอง · ${need} ที่หมาย</h3>
     <p style="font-size:14.5px">สถานการณ์: คุณลงถึงพื้นหลังสละอากาศยาน ไม่ทราบตำแหน่งของตนเอง ต้องแจ้งพิกัดขอความช่วยเหลือ${st.linear?` · สังเกตได้ว่าคุณยืนอยู่<b>${st.linear}</b>`:''}</p>
@@ -699,13 +972,15 @@ function runFixDrill(o){
     <div class="row"><div class="field" style="flex-basis:100%"><label for="fxl">ที่หมายที่เล็ง (ยอดเขาบนแผนที่)</label><select id="fxl">${lmOpts}</select></div>
       <div class="field"><label for="fxm">มุมภาคแม่เหล็กที่อ่านได้ (องศา)</label><input id="fxm" inputmode="decimal"></div><div class="field"><label for="fxg">มุมภาคกลับ (องศา)</label><input id="fxg" inputmode="decimal"></div><button class="btn" id="fxadd">บันทึกและลากเส้น</button></div>
     <ul class="log">${S.sights.map((s,k)=>`<li>${k+1}. ${esc(W.landmarks[s.k].name)} · อ่าน ${fd(s.m)}° · เส้นกริด ${fd(s.g)}°</li>`).join('')}</ul>
-    <div class="tools"><button class="btn" id="fxobs">สังเกตรอบตัว</button><button class="btn" id="fxclr">ลบการเล็งทั้งหมด</button>${plateBtns()}${drawBtns()}</div>
+    <div class="tools"><button class="btn" id="fxobs">สังเกตรอบตัว</button><button class="btn" id="fxundo" ${S.sights.length?'':'disabled'}>ลบการเล็งล่าสุด</button><button class="btn" id="fxclr">ลบการเล็งทั้งหมด</button><button class="btn" id="fxpinx" ${S.pin?'':'disabled'}>ลบหมุดตำแหน่ง</button>${plateBtns()}${drawBtns()}</div>
     <div class="row"><button class="btn primary" id="fxok" ${S.pin&&S.sights.length>=need?'':'disabled'}>ยืนยันตำแหน่ง (เล็งแล้ว ${S.sights.length}/${need})</button></div><div id="fxr"></div>
     `);
     bindPlate();bindDraw();
     on('fxobs',()=>ui('<b>สังเกตได้:</b> '+observeText(st.p.x,st.p.y).filter(t=>!/ยืนอยู่บนถนน|ริมลำห้วย/.test(t)||st.linear).join(' · ')));
     on('fxadd',()=>{const k=+val('fxl'),m=num('fxm'),g=num('fxg');if(isNaN(m)||isNaN(g))return ui('กรอกมุมที่อ่านได้และมุมกริดสกัดกลับก่อน');const L=W.landmarks[k];S.sights.push({k,m:wrap360(m),g:wrap360(g)});S.rays.push({x:L.x,y:L.y,az:wrap360(g)});requestDraw();ui(`ลากเส้นจาก ${esc(L.name)} ที่มุมกริด ${fd(g)}° แล้ว ${S.sights.length<need?'เล็งที่หมายถัดไป':'แตะแผนที่ปักตำแหน่งของคุณ'}`);});
     on('fxclr',()=>{S.sights.length=0;S.rays.length=0;requestDraw();ui('');});
+    on('fxundo',()=>{const s=S.sights.pop();S.rays.pop();requestDraw();ui(s?`ลบการเล็ง ${esc(W.landmarks[s.k].name)} แล้ว`:'');});
+    on('fxpinx',()=>{S.pin=null;drawMarks();ui('ลบหมุดแล้ว แตะแผนที่เพื่อปักใหม่');});
     on('fxok',submit);};
   function submit(){if(!S.pin||S.sights.length<need)return;tapHandler=null;const err=Math.round(dist(S.pin,st.p));
     const rows=S.sights.map(s=>{const L=W.landmarks[s.k],trueMag=wrap360(gridAz(st.p,L)-W.gmDeg),back=wrap360(gridAz(L,st.p)),vis=(C.lms.find(x=>x.name===L.name)||{}).vis;
@@ -714,7 +989,14 @@ function runFixDrill(o){
     O.tracks=S.sights.map(s=>{const L=W.landmarks[s.k];return{pts:[{x:L.x,y:L.y},st.p],color:'#1f8a3a',dash:[4,4],width:1.6};});
     setStageView('map',true);setView((S.pin.x+st.p.x)/2,(S.pin.y+st.p.y)/2,clamp(Math.min(mapC.clientWidth,mapC.clientHeight)*0.5/Math.max(err,400),fitZoom(),0.5));
     resetCompass({mode:'top'});
-    const html=`<p>ห่างจากตำแหน่งจริง <b class="mono">${err} ม.</b> · พิกัดจริง <span class="mono">${ZONE} ${gridRef(st.p.x,st.p.y,8)}</span></p>
+    const tips=[];S.sights.forEach(s=>{const L=W.landmarks[s.k],trueMag=wrap360(gridAz(st.p,L)-W.gmDeg),back=wrap360(gridAz(L,st.p)),em=angDiff(s.m,trueMag),eb=angDiff(s.g,wrap360(s.m+180));
+        const nm=esc(L.name);if(Math.abs(em)>20){const alt=C.lms.filter(x=>x.vis&&x.name!==L.name).find(x=>Math.abs(angDiff(s.m,wrap360(x.az-W.gmDeg)))<=5);
+          tips.push(alt?`${nm}: มุมที่อ่านได้ตรงกับ <b>${esc(alt.name)}</b> มากกว่า น่าจะระบุภูเขาผิดลูก เทียบความสูงและระยะกับแผนที่อีกครั้ง`:`${nm}: มุมที่อ่านคลาดจากจริง ${Math.round(Math.abs(em))}° ตรวจว่าเล็งภูเขาลูกนี้จริง`);}
+        else if(Math.abs(em)>TOL.comp)tips.push(`${nm}: อ่านมุมคลาด ${Math.round(Math.abs(em))}° ให้เส้นเล็งทับยอดพอดีและรอหน้าปัดนิ่ง`);
+        if(Math.abs(eb)>2){if(Math.abs(angDiff(s.g,s.m))<=2)tips.push(`${nm}: ลากเส้นด้วยมุมที่อ่านได้ ต้องใช้<b>มุมกลับ</b> (${fd(s.m)}° ${s.m>=180?'− 180':'+ 180'} = ${fd(s.m+180)}°)`);else tips.push(`${nm}: คำนวณมุมกลับผิด ${fd(s.m)}° → ควรเป็น ${fd(s.m+180)}° (มากกว่า 180 ลบ 180 · น้อยกว่าบวก 180)`);}});
+      if(!tips.length&&err>TOL.fixFull)tips.push('มุมใช้ได้ ความคลาดมาจากการปักจุด: ปักตรงจุดตัดของเส้น (ใช้ปุ่มลูกศรเลื่อนหมุดให้ตรง)'+(need===3?' หรือกลางสามเหลี่ยมความคลาดเคลื่อน':''));
+    const html=`<p>ห่างจากตำแหน่งจริง <b class="mono">${err} ม.</b> · พิกัดจริง <span class="mono">${ZONE} ${gridRef(st.p.x,st.p.y,8)}</span> · ที่คุณปัก <span class="mono">${gridRef(S.pin.x,S.pin.y,8)}</span></p>
+      <p class="muted" style="font-size:13px">เกณฑ์: ไม่เกิน ${TOL.fixFull} ม. = เต็ม · ไม่เกิน ${TOL.fixHalf} ม. = ครึ่ง</p>${tips.length?`<div class="fb">${tips.map(t=>'• '+t).join('<br>')}</div>`:''}
       <div class="wrapx"><table><tr><th>ที่หมาย</th><th>มุมแม่เหล็ก คุณ/จริง</th><th>มุมกริดสกัดกลับ คุณ/จริง</th></tr>${rows}</table></div>
       <p class="muted" style="font-size:13px">เส้นประเขียว = แนวเล็งที่ถูกต้อง · เส้นประม่วง = เส้นที่คุณลาก</p>`;
     o.onDone({err,html});}

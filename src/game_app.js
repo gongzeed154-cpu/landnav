@@ -60,8 +60,8 @@ function setPts(p,combo){const e=$('#pts');if(e)e.textContent=Math.round(p);cons
 function levelSession(idx){let done=false;const S={pts:0,combo:0,idx,
   hit(p){S.pts+=p;S.combo++;if(S.combo>=3)S.pts+=2;flash(true);setPts(S.pts,S.combo);},
   miss(){S.combo=0;flash(false);setPts(S.pts,0);},
-  end(bonus){if(done)return;done=true;S.over=true;stopTimer();tapHandler=null;setStageView('map',false);finishLevel(idx,S.pts+(bonus||0));}};return S;}
-function finishLevel(idx,raw){const L=LEVELS[idx],score=clamp(Math.round(raw),0,100),stars=starsOf(score);
+  end(bonus){if(done)return;done=true;S.over=true;stopTimer();tapHandler=null;setStageView('map',false);finishLevel(idx,S.pts+(bonus||0),S.extra||'');}};return S;}
+function finishLevel(idx,raw,extra){const L=LEVELS[idx],score=clamp(Math.round(raw),0,100),stars=starsOf(score);
   const prevBest=GS.st.levels[L.id]||0,prevRank=cleared();if(score>prevBest)GS.st.levels[L.id]=score;saveLocal();
   const nowRank=cleared(),promoted=nowRank>prevRank;renderRankChip();saveRemote();gameSubmit();sfx(stars?'win':'bad');
   const next=idx+1<LEVELS.length&&unlocked(idx+1);
@@ -70,6 +70,7 @@ function finishLevel(idx,raw){const L=LEVELS[idx],score=clamp(Math.round(raw),0,
     <div class="score mono">${score}<span class="muted" style="font-size:18px"> / 100</span></div>
     <p class="muted">${stars?(score>prevBest&&prevBest?'ทำลายสถิติเดิม ('+prevBest+')':'สถิติดีที่สุด '+Math.max(score,prevBest)):'ต้องได้ 60 คะแนนขึ้นไปจึงผ่านภารกิจ'}</p>
     ${promoted?`<div class="promo">${badge(nowRank,40)}<br>เลื่อนยศเป็น ${RANKS[nowRank]}</div>`:''}
+    ${extra?`<div style="text-align:left">${extra}</div>`:''}
     <div class="row" style="justify-content:center"><button class="btn" id="again">เล่นอีกครั้ง</button>${next?'<button class="btn primary" id="nxt">ภารกิจถัดไป</button>':''}<button class="btn" id="home">แผนที่ภารกิจ</button></div></div>`);
   on('again',()=>startLevel(idx));on('nxt',()=>startLevel(idx+1));on('home',()=>setTab('camp'));}
 function startLevel(i){O={};tapHandler=null;stopTimer();DRAW.on=false;resetCompass({mode:'top'});setStageView('map',false);LEVELS[i].run(levelSession(i),LEVELS[i]);requestDraw();}
@@ -85,37 +86,41 @@ function runL2(S,L){const qs=[];for(let k=0;k<8;k++){const d=k<5?6:8;let p=null;
   const limit=150;let i=0;const left=startTimer(limit,()=>S.end(0));
   const show=()=>{if(S.over)return;if(i>=qs.length)return S.end(Math.round(20*left()/limit));const q=qs[i];O={plate:O.plate||null,marks:[{x:q.p.x,y:q.p.y,kind:'dot'}]};setView(q.p.x,q.p.y,q.d===8?0.9:0.35);
     setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${qs.length}`,true)+`<p class="q">พิกัด <b>${q.d} หลัก</b> ของจุดแดงคืออะไร?</p>
-      <div class="row"><div class="field"><label for="ans">ตัวเลข ${q.d} หลัก (ขวาก่อน แล้วขึ้น)</label><input id="ans" inputmode="numeric" autocomplete="off"></div><button class="btn primary" id="ok">ยิง!</button></div>
+      <div class="row"><div class="field"><label for="ans">ตัวเลข ${q.d} หลัก (ขวาก่อน แล้วขึ้น)${q.d===8?` · ยอมคลาด ±${TOL.g8} หลักสุดท้าย`:""}</label><input id="ans" inputmode="numeric" autocomplete="off"></div><button class="btn primary" id="ok">ยิง!</button></div>
       <div class="tools">${plateBtns('<button class="btn" id="ps">วางมุมไม้วัดพิกัดที่จุด</button>')}</div><div id="fbx"></div>`);setPts(S.pts,S.combo);
     $('#ans').focus({preventScroll:true});
     bindPlate({romerAt:()=>q.p});
-    const check=()=>{const s=val('ans').replace(/\D/g,'');if(s.length!==q.d)return;const t=gridRef(q.p.x,q.p.y,q.d).replace(' ','');const ok=s===t;$('#ok').disabled=true;$('#ans').disabled=true;
-      if(ok)S.hit(10);else S.miss();$('#fbx').innerHTML=ok?'<div class="fb good">✓ แม่นยำ</div>':`<div class="fb bad"><strong>✗</strong> ที่ถูกคือ <span class="mono">${gridRef(q.p.x,q.p.y,q.d)}</span></div>`;setTimeout(()=>{i++;show();},ok?500:1500);};
+    const check=()=>{const s=val('ans').replace(/\D/g,'');if(s.length!==q.d)return;const g=gridCheck(s,q.p,q.d),ok=g.ok;$('#ok').disabled=true;$('#ans').disabled=true;
+      if(ok)S.hit(g.exact?10:8);else S.miss();$('#fbx').innerHTML=`<div class="fb ${ok?'good':'bad'}"><strong>${g.exact?'✓ แม่นยำ':ok?'✓ ผ่าน (คลาดเล็กน้อย) +8':'✗'}</strong> ${g.msg}</div>`;
+      if(g.exact)setTimeout(()=>{i++;show();},600);else{$('#fbx').insertAdjacentHTML('beforeend','<div class="row"><button class="btn primary" id="nx">ต่อไป</button></div>');on('nx',()=>{i++;show();});}};
     on('ok',check);on('ans',e=>{if(e.key==='Enter')check();},'keydown');};show();}
 /* L3 plot by grid */
 function runL3(S,L){const qs=[];for(let k=0;k<6;k++)qs.push(randLand(400));let i=0,sum=0;
   const show=()=>{if(S.over)return;if(i>=qs.length)return S.end(0);const p=qs[i],ref=gridRef(p.x,p.y,6),cx=Math.floor((E0+p.x)/100)*100-E0+50,cy=Math.floor((N0+p.y)/100)*100-N0+50;let pin=null;O={plate:O.plate||null,marks:[]};fitView();
-    tapHandler=(x,y)=>{pin={x,y};O.marks=[{x,y,kind:'pin',color:'#d6261c'}];$('#ok').disabled=false;requestDraw();};
-    setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${qs.length}`,false)+`<p class="q">ปักธงที่พิกัด <span class="mono">${ZONE} ${ref}</span></p><p class="muted">ห่างจากกลางช่อง ≤50 ม. = เต็ม · ≤100 ม. = 70% · ≤200 ม. = 35%</p><div class="tools">${plateBtns()}</div><div class="row"><button class="btn primary" id="ok" disabled>ปักธง!</button></div><div id="fbx"></div>`);bindPlate();setPts(S.pts,S.combo);
-    on('ok',()=>{tapHandler=null;const d=hyp(pin.x-cx,pin.y-cy),g=d<=50?1:d<=100?.7:d<=200?.35:0;const p2=100/6*g;if(g>=.7)S.hit(p2);else{S.pts+=p2;S.miss();}
+    tapHandler=(x,y)=>{pin={x,y};O.marks=[{x,y,kind:'pin',color:'#d6261c'}];$('#ok').disabled=false;requestDraw();};nudgeReg(()=>pin,p=>{O.marks=[{x:p.x,y:p.y,kind:'pin',color:'#d6261c'}];});
+    setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${qs.length}`,false)+`<p class="q">ปักธงที่พิกัด <span class="mono">${ZONE} ${ref}</span></p><p class="muted">ห่างจากกลางช่อง ≤80 ม. = เต็ม · ≤150 ม. = 70% · ≤250 ม. = 35% · ปักแล้วใช้ปุ่มลูกศรมุมซ้ายล่างเลื่อนธงทีละนิดได้</p><div class="tools">${plateBtns()}</div><div class="row"><button class="btn primary" id="ok" disabled>ปักธง!</button></div><div id="fbx"></div>`);bindPlate();setPts(S.pts,S.combo);
+    on('ok',()=>{tapHandler=null;const d=hyp(pin.x-cx,pin.y-cy),g=d<=80?1:d<=150?.7:d<=250?.35:0;const p2=100/6*g;if(g>=.7)S.hit(p2);else{S.pts+=p2;S.miss();}
       O.marks.push({x:cx-50,y:cy-50,kind:'sq'});setView(cx,cy,Math.max(V.z,0.3));$('#ok').disabled=true;
-      $('#fbx').innerHTML=`<div class="fb ${g>=.7?'good':'bad'}">ห่างเป้า ${Math.round(d)} ม. · ได้ ${Math.round(p2)} คะแนน</div><div class="row"><button class="btn primary" id="nx">ต่อไป</button></div>`;on('nx',()=>{i++;show();});});};show();}
+      const dE=Math.floor((E0+pin.x)/100)-Math.floor((E0+cx)/100),dN=Math.floor((N0+pin.y)/100)-Math.floor((N0+cy)/100);
+      const tip=g>=1?'':(Math.abs(dE)>=10||Math.abs(dN)>=10)?'ตรวจตัวเลขใหญ่ของเส้นกริด (หลักกิโลเมตร)':(dE||dN)?`ธงอยู่คนละช่อง (ตะวันออก ${dE>0?'+':''}${dE} · เหนือ ${dN>0?'+':''}${dN} ช่อง): ค่า 3 ตัวแรก = ขวา ค่า 3 ตัวหลัง = ขึ้น นับจากเส้นกริดทางซ้ายและทางใต้ของช่อง`:'อยู่ในช่องที่ถูกแล้ว ปักให้ใกล้กลางช่องมากขึ้น';
+      $('#fbx').innerHTML=`<div class="fb ${g>=.7?'good':'bad'}">ห่างกลางช่องเป้า ${Math.round(d)} ม. · ได้ ${Math.round(p2)} คะแนน<br>ช่องที่ถูก (กรอบเขียว) <span class="mono">${ZONE} ${ref}</span> · ธงของคุณอ่านได้ <span class="mono">${gridRef(pin.x,pin.y,6)}</span>${tip?'<br>• '+tip:''}</div><div class="row"><button class="btn primary" id="nx">ต่อไป</button></div>`;on('nx',()=>{i++;show();});});};show();}
 /* compass helpers */
 function standPoint(n){for(let i=0;i<40;i++){const p=randLand(500);const l=computePano(p.x,p.y);if(l.filter(x=>x.vis).length>=n)return p;}const p=randLand(500);computePano(p.x,p.y);return p;}
 /* L4 face azimuth */
 function runL4(S,L){const sp=standPoint(2);C.heading=rnd(0,360);C.disp=magHeading();C.vel=0;O={marks:[{x:sp.x,y:sp.y,kind:'sp',label:'จุดยืน'}]};setView(sp.x,sp.y,0.12);setStageView('comp',false);resetCompass({mode:'top'});
   const ts=[];for(let k=0;k<6;k++)ts.push(Math.round(rnd(0,359)));const limit=90;let i=0;const left=startTimer(limit,()=>S.end(0));
   const show=()=>{if(S.over)return;if(i>=ts.length)return S.end(Math.round(22*left()/limit));const m=ts[i];
-    setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${ts.length}`,true)+`<p class="q">หันไปที่มุมภาคแม่เหล็ก <span class="mono" style="color:var(--accent);font-size:22px">${m}°</span></p><p class="muted">±1° = 13 คะแนน · ±2° = 9 · ±4.5° = 4 · รอหน้าปัดนิ่งก่อนกด</p><div class="row"><button class="btn primary" id="ok">ล็อกเป้า!</button></div><div id="fbx"></div>`);setPts(S.pts,S.combo);
-    on('ok',()=>{const err=Math.round(angDiff(magHeading(),m)*10)/10,a=Math.abs(err),p=a<=1.1?13:a<=2.25?9:a<=4.5?4:0;$('#ok').disabled=true;if(p>=9)S.hit(p);else{S.pts+=p;S.miss();}
-      $('#fbx').innerHTML=`<div class="fb ${p>=9?'good':'bad'}">คลาด ${err>0?'+':''}${err}° · +${p}</div>`;setTimeout(()=>{i++;C.heading=wrap360(C.heading+rnd(60,200));requestDraw();show();},900);});};show();}
+    setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${ts.length}`,true)+`<p class="q">หันไปที่มุมภาคแม่เหล็ก <span class="mono" style="color:var(--accent);font-size:22px">${m}°</span></p><p class="muted">±2° = 13 คะแนน · ±${TOL.comp}° = 11 (ผ่าน) · ±7° = 5 · รอหน้าปัดนิ่งก่อนกด</p><div class="row"><button class="btn primary" id="ok">ล็อกเป้า!</button></div><div id="fbx"></div>`);setPts(S.pts,S.combo);
+    on('ok',()=>{const err=Math.round(angDiff(magHeading(),m)*10)/10,a=Math.abs(err),p=a<=2.05?13:a<=TOL.comp+0.05?11:a<=7?5:0;$('#ok').disabled=true;if(p>=11)S.hit(p);else{S.pts+=p;S.miss();}
+      $('#fbx').innerHTML=`<div class="fb ${p>=11?'good':'bad'}">เป้าหมาย ${m}° · คุณหันไปที่ ${fd(magHeading())}° (คลาด ${err>0?'+':''}${err}°) · +${p}${p>=11?'':'<br>• หมุนตัวช้าลงเมื่อใกล้ค่า รอหน้าปัดนิ่ง แล้วอ่านตัวเลขสีแดง (องศา) ใต้เส้นขีดดำ'}</div>`;setTimeout(()=>{i++;C.heading=wrap360(C.heading+rnd(60,200));requestDraw();show();},p>=11?1000:2600);});};show();}
 /* L5 read landmark */
 function runL5(S,L){const sp=standPoint(3);C.heading=rnd(0,360);C.disp=magHeading();C.vel=0;O={marks:[{x:sp.x,y:sp.y,kind:'sp',label:'จุดยืน'}]};setView(sp.x,sp.y,0.12);setStageView('comp',false);resetCompass({mode:'sight'});
   const vis=C.lms.filter(l=>l.vis);const ts=[];for(let k=0;k<5;k++)ts.push(vis.length?vis[k%vis.length]:null);const limit=150;let i=0;const left=startTimer(limit,()=>S.end(0));
-  const show=()=>{if(S.over)return;if(i>=ts.length||!ts[i])return S.end(Math.round(20*left()/limit));const lm=ts[i];
+  const show=()=>{if(S.over)return;if(i>=ts.length||!ts[i])return S.end(Math.round(20*left()/limit));const lm=ts[i];C.target=lm.name;requestDraw();
     setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${ts.length}`,true)+`<p class="q">ส่องเข็มทิศไปที่ <b>${esc(lm.name)}</b> มุมภาคแม่เหล็กเท่าไร?</p><div class="row"><div class="field"><label for="ans">องศา</label><input id="ans" inputmode="decimal" autocomplete="off"></div><button class="btn primary" id="ok">ส่ง</button></div><div id="fbx"></div>`);setPts(S.pts,S.combo);
-    const check=()=>{const a=num('ans');if(isNaN(a))return;const t=wrap360(lm.az-W.gmDeg),err=Math.round(angDiff(a,t)*10)/10,e=Math.abs(err),p=e<=1.1?16:e<=2.25?12:e<=4.5?5:0;$('#ok').disabled=true;$('#ans').disabled=true;
-      if(p>=12)S.hit(p);else{S.pts+=p;S.miss();}$('#fbx').innerHTML=`<div class="fb ${p>=12?'good':'bad'}">ค่าจริง ${fd(t)}° (คลาด ${err>0?'+':''}${err}°) · +${p}</div>`;setTimeout(()=>{i++;show();},1300);};
+    const check=()=>{const a=num('ans');if(isNaN(a))return;const t=wrap360(lm.az-W.gmDeg),err=Math.round(angDiff(a,t)*10)/10,e=Math.abs(err),p=e<=2.05?16:e<=TOL.comp+0.05?13:e<=7?6:0;$('#ok').disabled=true;$('#ans').disabled=true;
+      if(p>=13)S.hit(p);else{S.pts+=p;S.miss();}$('#fbx').innerHTML=`<div class="fb ${p>=13?'good':'bad'}">ค่าจริง <span class="mono">${fd(t)}°</span> · คุณตอบ ${fd(a)}° (คลาด ${err>0?'+':''}${err}°) · +${p}${p>=13?'':compassTip(a,t)}</div>`;
+      if(p>=13)setTimeout(()=>{i++;show();},1300);else{$('#fbx').insertAdjacentHTML('beforeend','<div class="row"><button class="btn primary" id="nx">ต่อไป</button></div>');on('nx',()=>{i++;show();});}};
     on('ok',check);on('ans',e=>{if(e.key==='Enter')check();},'keydown');};show();}
 /* L6 conversion quick-fire */
 function runL6(S,L){O={};fitView();const qs=[];for(let k=0;k<12;k++){const v=Math.round(rnd(0,359));qs.push({t:'back',v,ans:wrap360(v+180)});}
@@ -125,8 +130,8 @@ function runL6(S,L){O={};fitView();const qs=[];for(let k=0;k<12;k++){const v=Mat
     setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${qs.length}`,true)+`<p class="muted">มุมกลับ: น้อยกว่า 180° บวก 180° · ตั้งแต่ 180° ขึ้นไป ลบ 180° (ชุดนี้มุมกริด = มุมแม่เหล็ก)</p>
       <p class="q">${LBL[q.t][0]} <span class="mono" style="color:var(--accent);font-size:22px">${q.v}°</span> ${LBL[q.t][1]} = ?</p>
       <div class="row"><div class="field"><label for="ans">คำตอบ (องศา)</label><input id="ans" inputmode="decimal" autocomplete="off"></div><button class="btn primary" id="ok">ส่ง</button></div><div id="fbx"></div>`);setPts(S.pts,S.combo);$('#ans').focus({preventScroll:true});
-    const check=()=>{const a=num('ans');if(isNaN(a))return;const ok=Math.abs(angDiff(a,q.ans))<=0.25;$('#ok').disabled=true;$('#ans').disabled=true;if(ok)S.hit(7);else S.miss();
-      $('#fbx').innerHTML=ok?'<div class="fb good">✓</div>':`<div class="fb bad"><strong>✗</strong> ที่ถูกคือ <span class="mono">${fd(q.ans)}°</span></div>`;setTimeout(()=>{i++;show();},ok?400:1400);};
+    const check=()=>{const a=num('ans');if(isNaN(a))return;const ok=Math.abs(angDiff(a,q.ans))<=1.05;$('#ok').disabled=true;$('#ans').disabled=true;if(ok)S.hit(7);else S.miss();
+      $('#fbx').innerHTML=`<div class="fb ${ok?'good':'bad'}"><strong>${ok?'✓':'✗'}</strong> ${q.v}° ${q.v<180?'+ 180':'− 180'} = <span class="mono">${fd(q.ans)}°</span>${ok?'':` · คุณตอบ ${fd(a)}°${Math.abs(angDiff(a,q.v))<1.1?' (ยังไม่ได้กลับทิศ)':''}`}</div>`;setTimeout(()=>{i++;show();},ok?700:2200);};
     on('ok',check);on('ans',e=>{if(e.key==='Enter')check();},'keydown');};show();}
 /* L7 azimuth & distance */
 function runL7(S,L){const qs=[];for(let k=0;k<4;k++){let A,B;for(let t=0;t<100;t++){A=randLand(600);B=randLand(600);const d=dist(A,B);if(d>800&&d<3200)break;}qs.push({A,B});}let i=0;
@@ -137,9 +142,9 @@ function runL7(S,L){const qs=[];for(let k=0;k<4;k++){let A,B;for(let t=0;t<100;t
       <div class="row"><div class="field"><label for="a1">มุมภาค (องศา)</label><input id="a1" inputmode="decimal"></div><div class="field"><label for="a2">ระยะ (ม.)</label><input id="a2" inputmode="numeric"></div></div>
       <div class="row"><button class="btn primary" id="ok">ส่งคำตอบ</button></div><div id="fbx"></div>`);setPts(S.pts,S.combo);bindDraw();
     on('tp',e=>{O.plate=O.plate?null:{x:A.x,y:A.y};e.currentTarget.setAttribute('aria-pressed',!!O.plate);if(O.plate)setView(A.x,A.y,Math.min(mapC.clientWidth,mapC.clientHeight)/5400);requestDraw();});
-    on('ok',()=>{const a=[num('a1'),num('a2')];if(a.some(isNaN))return;const r=[Math.abs(angDiff(a[0],gaz))<=1,Math.abs(a[1]-dd)<=dd*.05];
+    on('ok',()=>{const a=[num('a1'),num('a2')];if(a.some(isNaN))return;const r=[Math.abs(angDiff(a[0],gaz))<=TOL.az,Math.abs(a[1]-dd)<=Math.max(dd*TOL.dist,TOL.distMin)];
       r.forEach((ok,k)=>{const el=$('#a'+(k+1));el.classList.add(ok?'ok':'no');el.disabled=true;});const p=(r[0]?13:0)+(r[1]?12:0);if(p>=17)S.hit(p);else{S.pts+=p;S.miss();}$('#ok').disabled=true;DRAW.on=false;
-      O.line={a:A,b:B,color:'#d6261c',dash:[6,4]};O.plate={x:A.x,y:A.y,az:gaz};requestDraw();$('#fbx').innerHTML=`<div class="fb ${p>=17?'good':'bad'}">+${p} · มุมภาค <span class="mono">${fd(gm)}°</span> · ระยะ <span class="mono">${dd}</span> ม.</div><div class="row"><button class="btn primary" id="nx">ต่อไป</button></div>`;on('nx',()=>{i++;show();});});};show();}
+      O.line={a:A,b:B,color:'#d6261c',dash:[6,4]};O.plate={x:A.x,y:A.y,az:gaz};requestDraw();$('#fbx').innerHTML=`<div class="fb ${p>=17?'good':'bad'}">+${p} · ค่าที่ถูก: มุมภาค <span class="mono">${fd(gm)}°</span> · ระยะ <span class="mono">${dd}</span> ม.<br><span class="muted">คุณตอบ ${fd(a[0])}° · ${a[1]} ม. · ยอมคลาด มุม ±${TOL.az}° ระยะ ±${Math.round(Math.max(dd*TOL.dist,TOL.distMin))} ม.</span>${angTip(a[0],gaz,'มุมภาค')}${distTip(a[1],dd)}</div><div class="row"><button class="btn primary" id="nx">ต่อไป</button></div>`;on('nx',()=>{i++;show();});});};show();}
 /* compass parts & cautions */
 function runParts(S,L){const sp=standPoint(1);C.heading=rnd(0,360);C.disp=magHeading();setStageView('comp',false);resetCompass({mode:'top'});
   const qs=[];const used=new Set();while(qs.length<6){const q=partQuestion();if(used.has(q.key))continue;used.add(q.key);qs.push({kind:'part',...q});}
@@ -152,26 +157,26 @@ function runParts(S,L){const sp=standPoint(1);C.heading=rnd(0,360);C.disp=magHea
 /* geographic coordinates */
 function runGeo(S,L){const qs=[];for(let k=0;k<4;k++)qs.push(randLand(500));let i=0;
   const show=()=>{if(S.over)return;if(i>=qs.length)return S.end(0);const p=qs[i],la=latSecAt(p.y),lo=lonSecAt(p.x);O={plate:O.plate||null,lines:O.lines||[],marks:[{x:p.x,y:p.y,kind:'dot'}]};setView(p.x,p.y,0.16);
-    setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${qs.length}`,false)+`<p class="q">พิกัดภูมิศาสตร์ของจุดแดง (องศา ลิปดา ฟิลิปดา)</p><p class="muted">±6″ = 25 คะแนน · ±12″ = 12 · กากบาทบนแผนที่ทุก 1 ลิปดา</p>
+    setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${qs.length}`,false)+`<p class="q">พิกัดภูมิศาสตร์ของจุดแดง (องศา ลิปดา ฟิลิปดา)</p><p class="muted">±${TOL.geo}″ = 25 คะแนน · ±15″ = 12 · กากบาทบนแผนที่ทุก 1 ลิปดา</p>
       <div class="row"><div class="field"><label for="la">ละติจูด N</label><input id="la" autocomplete="off" placeholder="14 16 50"></div><div class="field"><label for="lo">ลองจิจูด E</label><input id="lo" autocomplete="off" placeholder="99 32 05"></div><button class="btn primary" id="ok">ส่ง</button></div>
       <div class="tools">${plateBtns('<button class="btn" id="pg">วางมุมช่องวัดค่าลิปดาที่จุด</button>')}${drawBtns()}</div><div id="fbx"></div>`);setPts(S.pts,S.combo);bindPlate({romerAt:()=>p});bindDraw();
-    on('ok',()=>{const a=parseDMS(val('la')),b=parseDMS(val('lo'));if(isNaN(a)||isNaN(b))return;const e=Math.max(Math.abs(a-la),Math.abs(b-lo)),pt=e<=6?25:e<=12?12:0;$('#ok').disabled=true;if(pt>=25)S.hit(pt);else{S.pts+=pt;S.miss();}
-      $('#fbx').innerHTML=`<div class="fb ${pt>=25?'good':'bad'}">+${pt} · พิกัดจริง <span class="mono">${fmtDMS(la,'N')} , ${fmtDMS(lo,'E')}</span></div><div class="row"><button class="btn primary" id="nx">ต่อไป</button></div>`;on('nx',()=>{i++;show();});});};show();}
+    on('ok',()=>{const a=parseDMS(val('la')),b=parseDMS(val('lo'));if(isNaN(a)||isNaN(b))return;const e=Math.max(Math.abs(a-la),Math.abs(b-lo)),pt=e<=TOL.geo?25:e<=15?12:0;$('#ok').disabled=true;if(pt>=25)S.hit(pt);else{S.pts+=pt;S.miss();}
+      const ea=Math.round(a-la),eo=Math.round(b-lo);$('#fbx').innerHTML=`<div class="fb ${pt>=25?'good':'bad'}">+${pt} · พิกัดจริง <span class="mono">${fmtDMS(la,'N')} , ${fmtDMS(lo,'E')}</span> (คลาด ${ea>0?'+':''}${ea}″ / ${eo>0?'+':''}${eo}″)${pt>=25?'':e>=50?'<br>• คลาดเกือบ 1 ลิปดา: ใช้ค่าลิปดาของเส้นด้านใต้ (ละติจูด) และด้านตะวันตก (ลองจิจูด) ของจุด':'<br>• วางมุมช่องวัดค่าทับจุดพอดี อ่านฟิลิปดาตรงที่เส้นลิปดาตัดแขนช่องวัดค่า'}</div><div class="row"><button class="btn primary" id="nx">ต่อไป</button></div>`;on('nx',()=>{i++;show();});});};show();}
 /* night setting of the compass */
 function runNight(S,L){const sp=standPoint(1);C.heading=rnd(0,360);C.disp=magHeading();setStageView('comp',false);
   const ts=[{k:'dark'},{k:'light'},{k:'dark'}];let i=0;
   const show=()=>{if(S.over)return;if(i>=ts.length)return S.end(1);const t=ts[i];
     if(t.k==='dark'){const n=Math.round(rnd(4,40)),X=n*3;resetCompass({mode:'top',night:true,lum:0});C.heading=wrap360(C.heading+rnd(40,160));
       setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${ts.length}`,false)+`<p class="q">ไม่มีแสงสว่าง ต้องเดินมุม <span class="mono" style="color:var(--accent);font-size:22px">${X}°</span></p><p class="muted">ขีดพรายน้ำเริ่มตรงเส้นดัชนี · หมุนวงแหวนทวนเข็ม (↺) = มุม ÷ 3 คลิก · แล้วหันตัวจนลูกศรพรายน้ำตรงขีดพรายน้ำ</p><div class="row"><button class="btn primary" id="ok">ยืนยันทิศ</button></div><div id="fbx"></div>`);setPts(S.pts,S.combo);
-      on('ok',()=>{const err=Math.abs(angDiff(magHeading(),X)),pt=err<=3?33:err<=6?15:0,clicks=Math.round(wrap360(-C.lum)/3)%120;C.night=false;requestDraw();$('#ok').disabled=true;if(pt>=33)S.hit(pt);else{S.pts+=pt;S.miss();}
-        $('#fbx').innerHTML=`<div class="fb ${pt>=33?'good':'bad'}">+${pt} · ต้อง ${n} คลิก (คุณหมุน ${clicks}) · หันไปที่ ${fd(magHeading())}°</div><div class="row"><button class="btn primary" id="nx">ต่อไป</button></div>`;on('nx',()=>{i++;show();});});}
+      on('ok',()=>{const err=Math.abs(angDiff(magHeading(),X)),pt=err<=TOL.compNight?33:err<=9?15:0,clicks=Math.round(wrap360(-C.lum)/3)%120;C.night=false;requestDraw();$('#ok').disabled=true;if(pt>=33)S.hit(pt);else{S.pts+=pt;S.miss();}
+        $('#fbx').innerHTML=`<div class="fb ${pt>=33?'good':'bad'}">+${pt} · เป้าหมาย ${X}° = ${X} ÷ 3 = ${n} คลิกทวนเข็ม · คุณหมุน ${clicks} คลิก · หันไปที่ ${fd(magHeading())}° (คลาด ${Math.round(err)}°)${pt>=33?'':clicks!==n?'<br>• จำนวนคลิกไม่ตรง: เริ่มจากขีดพรายน้ำตรงเส้นดัชนี แล้วหมุนวงแหวนทวนเข็ม (↺) มุม ÷ 3 คลิก':'<br>• คลิกถูกแล้ว หันตัวช้าๆ จนลูกศรพรายน้ำทับขีดพรายน้ำพอดี'}</div><div class="row"><button class="btn primary" id="nx">ต่อไป</button></div>`;on('nx',()=>{i++;show();});});}
     else{const X=Math.round(rnd(10,350));resetCompass({mode:'top',lum:Math.round(rnd(0,119))*3});let ph=1;
       const ui=()=>{setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${ts.length}`,false)+(ph===1?`<p class="q">มีแสงสว่าง: ตั้งมุม <span class="mono" style="color:var(--accent);font-size:22px">${X}°</span></p><p class="muted">หันให้ ${X}° อยู่ใต้เส้นขีดดำ แล้วหมุนวงแหวนจนขีดพรายน้ำทับลูกศรเหนือ</p><div class="row"><button class="btn primary" id="ok">ตั้งเสร็จ</button></div>`
         :`<p class="q">ไฟดับ! หันตัวจนลูกศรพรายน้ำตรงขีดพรายน้ำ</p><div class="row"><button class="btn primary" id="ok">ยืนยันทิศ</button></div>`)+'<div id="fbx"></div>');setPts(S.pts,S.combo);
-        on('ok',()=>{if(ph===1){if(Math.abs(angDiff(magHeading(),X))>2.5||Math.abs(lumErr(X))>2.5){$('#fbx').innerHTML='<div class="fb bad">ยังตั้งไม่ตรง ตรวจทั้งมุมใต้เส้นขีดดำและตำแหน่งขีดพรายน้ำ</div>';return;}
+        on('ok',()=>{if(ph===1){if(Math.abs(angDiff(magHeading(),X))>3.5||Math.abs(lumErr(X))>3.5){$('#fbx').innerHTML='<div class="fb bad">ยังตั้งไม่ตรง ตรวจทั้งมุมใต้เส้นขีดดำและตำแหน่งขีดพรายน้ำ</div>';return;}
             ph=2;C.night=true;C.heading=wrap360(C.heading+(Math.random()<.5?-1:1)*rnd(60,150));requestDraw();ui();}
-          else{const err=Math.abs(angDiff(magHeading(),X)),pt=err<=3?34:err<=6?15:0;C.night=false;requestDraw();$('#ok').disabled=true;if(pt>=34)S.hit(pt);else{S.pts+=pt;S.miss();}
-            $('#fbx').innerHTML=`<div class="fb ${pt>=34?'good':'bad'}">+${pt} · หันไปที่ ${fd(magHeading())}° (เป้าหมาย ${X}°)</div><div class="row"><button class="btn primary" id="nx">ต่อไป</button></div>`;on('nx',()=>{i++;show();});}});};ui();}};show();}
+          else{const err=Math.abs(angDiff(magHeading(),X)),pt=err<=TOL.compNight?34:err<=9?15:0;C.night=false;requestDraw();$('#ok').disabled=true;if(pt>=34)S.hit(pt);else{S.pts+=pt;S.miss();}
+            $('#fbx').innerHTML=`<div class="fb ${pt>=34?'good':'bad'}">+${pt} · หันไปที่ ${fd(magHeading())}° (เป้าหมาย ${X}° · คลาด ${Math.round(err)}°)${pt>=34?'':'<br>• หลังไฟดับ ห้ามหมุนวงแหวน ให้หมุนตัวช้าๆ จนลูกศรพรายน้ำทับขีดพรายน้ำพอดี'}</div><div class="row"><button class="btn primary" id="nx">ต่อไป</button></div>`;on('nx',()=>{i++;show();});}});};ui();}};show();}
 
 /* ---------- navigation engine (L8 patrol & Score-O) ---------- */
 function runNav(cfg){
@@ -182,7 +187,7 @@ function runNav(cfg){
   const draw=()=>{const marks=[{x:sp.x,y:sp.y,kind:'sp',label:cfg.mode==='scoreo'?'เริ่ม/เส้นชัย':'SP'}];
     tg.forEach((c,k)=>{if(N.found.has(k))marks.push({x:c.x,y:c.y,kind:'cp',label:c.label,color:'#1f8a3a'});});
     N.pins.forEach((p,k)=>marks.push({x:p.x,y:p.y,kind:'pin',label:'หมุด '+(k+1)}));
-    O={plate:O.plate||null,lines:O.lines||[],ruler:O.ruler||null,marks,rays:N.rays,tracks:N.plan.map(seg=>({pts:seg,color:'#555',dash:[6,5],width:1.8}))};requestDraw();};
+    O={plate:O.plate||null,lines:O.lines||[],ruler:O.ruler||null,marks,rays:N.rays,tracks:N.plan.map(seg=>({pts:seg,color:'#555',dash:[6,5],width:1.8}))};routeApply(sp,N.pins);requestDraw();};
   const rows=()=>tg.map((c,k)=>`<span class="mono">${esc(c.label)}</span><span class="mono">${gridRef(c.x,c.y,8)}</span><span class="mono" style="color:var(--accent)">${cfg.mode==='scoreo'?c.pts:''}</span><span>${N.found.has(k)?'<span class="pill pass">✓</span>':(cfg.mode==='patrol'&&k===nextIdx()?'<span class="pill">ถัดไป</span>':'')}</span>`).join('');
   const lmOpts=()=>W.landmarks.map((l,k)=>`<option value="${k}">${esc(l.name)} (${gridRef(l.x,l.y,6)})</option>`).join('');
   const clock=()=>`<span class="mono ${cfg.limit&&N.time>cfg.limit?'':'muted'}" style="${cfg.limit&&N.time>cfg.limit?'color:var(--bad)':''}">เวลา ${Math.round(N.time)}${cfg.limit?'/'+cfg.limit:''} นาที</span>`;
@@ -191,49 +196,54 @@ function runNav(cfg){
     <div class="flaglist">${rows()}</div>
     ${msg?`<div class="fb">${msg}</div>`:''}
     <div class="row"><div class="field"><label for="laz">มุมภาค (องศา)</label><input id="laz" inputmode="decimal"></div><div class="field"><label for="ld">จำนวนก้าวที่นับ</label><input id="ld" inputmode="numeric"></div><button class="btn primary" id="walk">เดิน</button></div><p class="muted" style="font-size:12.5px;margin:4px 0 0">ก้าวมาตรฐาน 140 ก้าว/100 ม. · ระยะ = ก้าว × 100 ÷ 140</p>
-    <div class="tools"><button class="btn" id="obs">สังเกตรอบตัว</button><button class="btn" id="look">ส่องเข็มทิศ</button><button class="btn" id="find">${cfg.mode==='scoreo'?'ค้นหาธง':'ค้นหาจุดตรวจ'}</button><button class="btn" id="pin" aria-pressed="${N.pinMode}">ปักหมุด</button>${plateBtns()}${drawBtns()}</div>
+    <div class="tools"><button class="btn" id="obs">สังเกตรอบตัว</button><button class="btn" id="look">ส่องเข็มทิศ</button><button class="btn" id="find">${cfg.mode==='scoreo'?'ค้นหาธง':'ค้นหาจุดตรวจ'}</button><button class="btn" id="pin" aria-pressed="${N.pinMode}">ปักหมุด</button><button class="btn" id="pinx" ${N.pins.length?'':'disabled'}>ลบหมุดล่าสุด</button>${routeBtn()}${plateBtns()}${drawBtns()}</div>
     <details><summary>ตัดกลับหาตำแหน่งตัวเอง</summary>
       <div class="row"><div class="field" style="flex-basis:100%"><label for="lm">จุดสังเกต</label><select id="lm">${lmOpts()}</select></div><div class="field"><label for="raz">มุมภาคกลับ จากจุดสังเกตมาหาเรา (องศา)</label><input id="raz" inputmode="decimal"></div><button class="btn" id="ray">ลากเส้น</button></div>
-      <div class="tools"><button class="btn" id="rclr">ลบเส้น</button><button class="btn" id="usepin" ${N.pins.length?'':'disabled'}>ใช้หมุดล่าสุดเป็นตำแหน่งของฉัน</button></div></details>
+      <div class="tools"><button class="btn" id="rlast" ${N.rays.length?'':'disabled'}>ลบเส้นล่าสุด</button><button class="btn" id="rclr">ลบเส้นทั้งหมด</button><button class="btn" id="usepin" ${N.pins.length?'':'disabled'}>ใช้หมุดล่าสุดเป็นตำแหน่งของฉัน</button></div></details>
     <div class="row"><button class="btn" id="end">${cfg.mode==='scoreo'?(N.endArm?'ยืนยันจบนอกเส้นชัย (หักครึ่ง)':'เข้าเส้นชัย'):'จบภารกิจ'}</button></div>
     <ul class="log">${N.log.slice(-5).reverse().map(l=>`<li>${l}</li>`).join('')}</ul>`);
-    bindPlate();bindDraw();on('walk',walk);on('obs',()=>ui('<b>สังเกตได้:</b> '+observeText(N.tp.x,N.tp.y).join(' · ')));
+    bindPlate();bindDraw();bindRoute(m=>ui(m));on('walk',walk);on('obs',()=>ui('<b>สังเกตได้:</b> '+observeText(N.tp.x,N.tp.y).join(' · ')));
     on('look',()=>{computePano(N.tp.x,N.tp.y);C.disp=magHeading();resetCompass({mode:'sight'});setStageView('comp',true);});
     on('find',find);on('pin',()=>{N.pinMode=!N.pinMode;setStageView('map',true);ui(N.pinMode?'แตะแผนที่เพื่อปักหมุด':'');});
     on('ray',()=>{const k=+val('lm'),a=num('raz');if(isNaN(a))return;const Lm=W.landmarks[k];N.rays.push({x:Lm.x,y:Lm.y,az:wrap360(a)});ui(`ลากเส้นจาก ${esc(Lm.name)} ที่ ${fd(a)}°`);});
     on('rclr',()=>{N.rays.length=0;ui('');});
+    on('rlast',()=>{N.rays.pop();ui('ลบเส้นสกัดกลับเส้นล่าสุดแล้ว');});
+    on('pinx',()=>{N.pins.pop();ui(N.pins.length?`เหลือหมุด ${N.pins.length} อัน`:'ลบหมุดหมดแล้ว');});
     on('usepin',()=>{const p=N.pins[N.pins.length-1];N.pp={...p};N.plan.push([{...p}]);N.log.push('ตั้งตำแหน่งใหม่ที่หมุด '+N.pins.length);ui('ตั้งตำแหน่งของคุณที่หมุดล่าสุดแล้ว');});
     on('end',endPress);};
-  tapHandler=(x,y)=>{if(!N.pinMode||N.done)return;N.pins.push({x,y});ui(`ปักหมุด ${N.pins.length} ที่ ${gridRef(x,y,8)}`);};
+  tapHandler=(x,y)=>{if(!N.pinMode||N.done)return;N.pins.push({x,y});ui(`ปักหมุด ${N.pins.length} ที่ ${gridRef(x,y,8)} · ใช้ปุ่มลูกศรมุมซ้ายล่างเลื่อนหมุดล่าสุดได้`);};
+  nudgeReg(()=>N.pins[N.pins.length-1],()=>draw());N.legs=[];N.fails=0;
+  const aimOf=(pp,az,cnt)=>{if(cfg.mode==='patrol'){const k=nextIdx();return k>=0?tg[k]:null;}const a=(az+W.gmDeg)*Math.PI/180,e={x:pp.x+Math.sin(a)*cnt,y:pp.y+Math.cos(a)*cnt};let b=null,bd=1e9;tg.forEach((c,k)=>{if(N.found.has(k))return;const d=dist(e,c);if(d<bd){bd=d;b=c;}});return b;};
   function walk(){const az=num('laz'),P=num('ld');if(isNaN(az)||isNaN(P)||P<=0)return ui('กรอกมุมภาคและจำนวนก้าวก่อนเดิน');const Dm=Math.min(P*100/140,3000);N.endArm=false;
     const legErr=gauss()*0.5,scale=N.stride*(1+gauss()*0.015);let hdg=wrap360(az)+W.gmDeg+legErr,x=N.tp.x,y=N.tp.y,cnt=0,act=0,stop='',wet=false;
     while(cnt<Dm){const step=Math.min(10,Dm-cnt);hdg+=gauss()*(W.isForest(x,y)?0.2:0.1);const a=hdg*Math.PI/180,h1=W.elev(x,y),sl=(W.elev(x+Math.sin(a)*step,y+Math.cos(a)*step)-h1)/step,f=scale;
       const mx=x+Math.sin(a)*step*f,my=y+Math.cos(a)*step*f;if(mx<0||my<0||mx>MAP||my>MAP){stop='ถึงขอบพื้นที่';break;}
       if(W.isWater(mx,my))wet=true;
       x=mx;y=my;cnt+=step;act+=step*f;N.time+=0.15*(step/10)*(1+2*Math.max(0,sl))*(W.isWater(x,y)?2:1)*(W.isForest(x,y)?1.4:1)*(W.roadDist(x,y)<20?0.8:1);if(((cnt/10)|0)%5===0)N.trueTrack.push({x,y});}
-    const pc=Math.round(cnt*1.4);N.trueTrack.push({x,y});N.tp={x,y};N.counted+=pc;N.actual+=act;const pa=(wrap360(az)+W.gmDeg)*Math.PI/180;N.pp={x:N.pp.x+Math.sin(pa)*cnt,y:N.pp.y+Math.cos(pa)*cnt};N.plan[N.plan.length-1].push({...N.pp});
+    const pc=Math.round(cnt*1.4);const aim=aimOf(N.pp,wrap360(az),cnt);if(aim)N.legs.push({from:{...N.tp},pp:{...N.pp},az:wrap360(az),paces:pc,cnt,end:{x,y},tgt:{x:aim.x,y:aim.y},label:aim.label});N.trueTrack.push({x,y});N.tp={x,y};N.counted+=pc;N.actual+=act;const pa=(wrap360(az)+W.gmDeg)*Math.PI/180;N.pp={x:N.pp.x+Math.sin(pa)*cnt,y:N.pp.y+Math.cos(pa)*cnt};N.plan[N.plan.length-1].push({...N.pp});
     N.log.push(`เดิน ${fd(az)}° นับได้ ${pc} ก้าว${wet?' (ลุยข้ามน้ำ)':''}${stop?' — '+stop:''}`);if(stop)sfx('bad');ui(stop?`<b>${stop}</b> หลังนับได้ ${pc} ก้าว`:`เดินครบ ${pc} ก้าว${wet?' · ลุยข้ามน้ำระหว่างทาง':''}`);}
   function find(){N.endArm=false;N.time+=cfg.mode==='scoreo'?3:5;let hit=-1;
-    if(cfg.mode==='patrol'){const k=nextIdx();if(k>=0&&dist(N.tp,tg[k])<=50)hit=k;}else{let bd=51;tg.forEach((c,k)=>{if(N.found.has(k))return;const d=dist(N.tp,c);if(d<bd){bd=d;hit=k;}});}
+    if(cfg.mode==='patrol'){const k=nextIdx();if(k>=0&&dist(N.tp,tg[k])<=TOL.find)hit=k;}else{let bd=TOL.find+1;tg.forEach((c,k)=>{if(N.found.has(k))return;const d=dist(N.tp,c);if(d<bd){bd=d;hit=k;}});}
     N.searches.push({x:N.tp.x,y:N.tp.y,ok:hit>=0});
-    if(hit>=0){N.found.add(hit);const c=tg[hit];N.pp={...c};N.plan.push([{...c}]);N.log.push(`พบ ${c.label}`);flash(true);
+    if(hit>=0){N.fails=0;N.found.add(hit);const c=tg[hit];N.pp={...c};N.plan.push([{...c}]);N.log.push(`พบ ${c.label}`);flash(true);
       if(cfg.mode==='patrol'&&N.found.size===tg.length)return finish(true);ui(`<b>พบ ${esc(c.label)}!</b>${cfg.mode==='scoreo'?' +'+c.pts+' คะแนน':''} ตำแหน่งของคุณคือ ${gridRef(c.x,c.y,8)}`);}
-    else{flash(false);N.log.push('ค้นหาไม่พบ');ui('ไม่พบอะไรในรัศมี 50 ม. ตรวจสอบตำแหน่งอีกครั้ง');}}
-  function endPress(){if(cfg.mode==='patrol')return finish(false);const atFinish=dist(N.tp,sp)<=60;if(atFinish)return finish(true);if(!N.endArm){N.endArm=true;return ui('คุณยังไม่อยู่ที่เส้นชัย (เกิน 60 ม.) จบตอนนี้คะแนนจะถูกหักครึ่ง');}finish(false);}
+    else{flash(false);N.fails++;N.log.push('ค้นหาไม่พบ');let c=null;if(cfg.mode==='patrol'){const k=nextIdx();c=k>=0?tg[k]:null;}else{let bd=1e9;tg.forEach((t,k)=>{if(N.found.has(k))return;const d=dist(N.tp,t);if(d<bd){bd=d;c=t;}});}
+      ui(`ไม่พบ${cfg.mode==='scoreo'?'ธง':'จุดตรวจ'}ในรัศมี ${TOL.find} ม.${c?' · '+(cfg.mode==='scoreo'?'ธงที่ใกล้ที่สุด: ':'')+searchHelp(dist(N.tp,c),gridAz(N.tp,c),N.fails):''}`);}}
+  function endPress(){if(cfg.mode==='patrol')return finish(false);const atFinish=dist(N.tp,sp)<=TOL.find;if(atFinish)return finish(true);if(!N.endArm){N.endArm=true;return ui(`คุณยังไม่อยู่ที่เส้นชัย (ห่างเกิน ${TOL.find} ม.) จบตอนนี้คะแนนจะถูกหักครึ่ง · เส้นชัย${navBand(dist(N.tp,sp))} ไปทาง${dir8(gridAz(N.tp,sp))}`);}finish(false);}
   function finish(ok){N.done=true;tapHandler=null;setStageView('map',false);
     const marks=[{x:sp.x,y:sp.y,kind:'sp',label:cfg.mode==='scoreo'?'เส้นชัย':'SP'}];tg.forEach((c,k)=>marks.push({x:c.x,y:c.y,kind:'cp',label:c.label,color:N.found.has(k)?'#1f8a3a':'#d6261c'}));
     N.searches.forEach(s=>marks.push({x:s.x,y:s.y,kind:'x',color:s.ok?'#1f8a3a':'#d6261c'}));
     O={marks,tracks:[...N.plan.map(seg=>({pts:seg,color:'#555',dash:[6,5],width:1.8})),{pts:N.trueTrack,color:'#d6261c',width:2.6}]};fitView();
-    cfg.onEnd({ok,found:N.found.size,points:pointsNow(),time:N.time,wrong:N.searches.filter(s=>!s.ok).length,counted:N.counted,actual:N.actual,endDist:dist(N.tp,sp)});}
+    cfg.onEnd({ok,review:legReview(N.legs,140),found:N.found.size,points:pointsNow(),time:N.time,wrong:N.searches.filter(s=>!s.ok).length,counted:N.counted,actual:N.actual,endDist:dist(N.tp,sp)});}
   setView(sp.x,sp.y,0.2);ui('');}
 function navStart(){for(let i=0;i<80;i++){const p=randLand(900);if(W.roadDist(p.x,p.y)<60)return p;}return randLand(900);}
 function runL8(S,L){const sp=navStart();const tg=[];let prev=sp;for(let k=0;k<2;k++){let c=null;for(let i=0;i<300&&!c;i++){const a=rnd(0,6.283),d=rnd(700,1200),p={x:prev.x+Math.sin(a)*d,y:prev.y+Math.cos(a)*d};if(landOK(p.x,p.y)&&p.x>500&&p.y>500&&p.x<MAP-500&&p.y<MAP-500&&dist(p,sp)>500)c=p;}c=c||randLand(600);tg.push({...c,label:'CP'+(k+1),pts:40});prev=c;}
   const par=(dist(sp,tg[0])+dist(tg[0],tg[1]))/1000*15*1.3;
-  runNav({title:`ภารกิจ ${S.idx+1} · ${L.name}`,mode:'patrol',start:sp,targets:tg,onEnd:r=>{const bonus=r.found===2?Math.round(20*clamp(par/Math.max(r.time,1),0,1)):0;S.pts=40*r.found+bonus-5*r.wrong;S.end(0);}});}
+  runNav({title:`ภารกิจ ${S.idx+1} · ${L.name}`,mode:'patrol',start:sp,targets:tg,onEnd:r=>{const bonus=r.found===2?Math.round(20*clamp(par/Math.max(r.time,1),0,1)):0;S.pts=45*r.found+Math.round(bonus/2)-3*r.wrong;S.extra=`<p class="muted" style="font-size:13.5px">พบ ${r.found}/2 จุดตรวจ (จุดละ 45) · ค้นหาผิดที่ ${r.wrong} ครั้ง (ครั้งละ −3) · พบเมื่ออยู่ห่างจุดตรวจไม่เกิน ${TOL.find} ม. · เส้นแดง = ทางที่เดินจริง · เส้นประ = ทางที่คิดว่าเดิน</p>`+r.review;S.end(0);}});}
 
 function runFix(S,L){const kinds=CFG.short?[1,2]:[1,2,3];let i=0;
   const go=()=>{if(S.over)return;if(i>=kinds.length)return S.end(1);
-    runFixDrill({kind:kinds[i],title:`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${kinds.length}`,onDone:r=>{const full=CFG.short?50:33,pt=r.err<=100?full:r.err<=250?Math.round(full/2):0;if(pt>=full)S.hit(pt);else{S.pts+=pt;S.miss();}
+    runFixDrill({kind:kinds[i],title:`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${kinds.length}`,onDone:r=>{const full=CFG.short?50:33,pt=r.err<=TOL.fixFull?full:r.err<=TOL.fixHalf?Math.round(full/2):0;if(pt>=full)S.hit(pt);else{S.pts+=pt;S.miss();}
       setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${kinds.length}`,false)+`<div class="fb ${pt>=full?'good':'bad'}">+${pt} คะแนน</div>${r.html}<div class="row"><button class="btn primary" id="nx">ต่อไป</button></div>`);setPts(S.pts,S.combo);on('nx',()=>{i++;go();});}});};go();}
 const LEVELS=[
   {id:'L1',name:'ตาเหยี่ยว',sub:'เครื่องหมาย เส้นชั้นความสูง ภูมิประเทศ · 100 วินาที',run:runL1},
@@ -276,7 +286,7 @@ function showScoreO(){stopTimer();O={};tapHandler=null;setStageView('map',false)
     setSheet(`<div class="result"><div class="eyebrow">Score-O · ${esc(GS.code)}</div><div class="score mono">${pts}<span class="muted" style="font-size:18px"> คะแนน</span></div>
       <p>ธง ${r.found}/${fl.length} · เวลา ${t} นาที ${r.ok?'· เข้าเส้นชัย':'· <span style="color:var(--bad)">ไม่เข้าเส้นชัย (หักครึ่ง)</span>'}</p>
       ${better?'<div class="promo">สถิติใหม่ของคุณ!</div>':''}
-      <p class="muted" style="font-size:13.5px">เส้นแดง = ทางที่เดินจริง · เส้นประ = ทางที่คิดว่าเดิน · ✕ = จุดค้นหา</p>
+      <p class="muted" style="font-size:13.5px">เส้นแดง = ทางที่เดินจริง · เส้นประ = ทางที่คิดว่าเดิน · ✕ = จุดค้นหา (พบเมื่ออยู่ห่างไม่เกิน ${TOL.find} ม.)</p><div style="text-align:left">${r.review}</div>
       <div class="row" style="justify-content:center"><button class="btn primary" id="again">แข่งอีกครั้ง</button><button class="btn" id="lb">ดูตารางอันดับ</button></div></div>`);
     on('again',showScoreO);on('lb',()=>setTab('lb'));}}));}
 
@@ -286,11 +296,17 @@ const GSET=CFG.short?'เกม (ย่อ 30 นาที)':'เกม (เต�
 function gameSum(){let got=0;for(const L of LEVELS)got+=Math.min(100,GS.st.levels[L.id]||0);return{got,tot:LEVELS.length*100,cl:cleared(),stars:totalStars(),so:(GS.st.so[GS.code]||{}).pts||0};}
 function gameCode(){const g=gameSum(),cl=v=>String(v||'').replace(/[|\n\r#,:]/g,' ').trim();const so=Object.keys(GS.st.so).slice(-6).map(k=>`${k}:${GS.st.so[k].pts}`).join(',');
   const body=`OC2|${CFG.short?'S':'F'}|${cl(GS.st.callsign)}|${cl(GS.st.sid)}|${g.stars}|${g.cl}|${so}|${Math.floor(Date.now()/1000).toString(36)}`;return body+'|'+hashS(body);}
-function gamePayload(){const g=gameSum();return{key:'game-'+(CFG.short?'S':'F'),kind:'game',set:CFG.short?'S':'F',setName:GSET,name:String(GS.st.callsign||'').trim(),sid:String(GS.st.sid||'').trim(),code:GS.code,score:g.got,total:g.tot,cleared:g.cl,levels:LEVELS.length,stars:g.stars,starsMax:LEVELS.length*3,so:g.so,chk:gameCode(),at:Date.now()};}
+function gamePayload(){const g=gameSum();return{key:'game-'+(CFG.short?'S':'F'),kind:'game',set:CFG.short?'S':'F',setName:GSET,name:String(GS.st.callsign||'').trim(),sid:String(GS.st.sid||'').trim(),code:GS.code,score:g.got,total:g.tot,cleared:g.cl,levels:LEVELS.length,stars:g.stars,starsMax:LEVELS.length*3,so:g.so,lv:GS.st.levels,soAll:GS.st.so,chk:gameCode(),at:Date.now()};}
+window.APPKIND='game';
+window.onRoomJoin=()=>{if(Object.keys(GS.st.levels||{}).length)gameSubmit();};
+window.onIdentity=(nm,sd)=>{GS.st.callsign=nm.slice(0,40);GS.st.sid=sd.slice(0,20);saveLocal();try{renderRankChip();}catch(e){}if(GS.tab==='lb')showBoard();};
+window.onRestore=d=>{let n=0;const lv=d&&d.lv||{};for(const k of Object.keys(lv)){const v=Math.min(100,+lv[k]||0);if(v>(GS.st.levels[k]||0)){GS.st.levels[k]=v;n++;}}
+  const so=d&&d.soAll||{};for(const c of Object.keys(so)){const a=so[c],b=GS.st.so[c];if(a&&(!b||a.pts>b.pts)){GS.st.so[c]=a;n++;}}
+  if(n){saveLocal();try{renderRankChip();}catch(e){}if(GS.tab==='camp')showCampaign();}return n;};
 function gameSubmit(){if(!CFG.web||!String(GS.st.callsign||'').trim())return;netSend(gamePayload());}
 window.onNetStatus=()=>{const el=document.getElementById('netst');if(el)el.textContent=netText();};
 GS.webBoard=null;
-function fetchWebBoard(){const u=netURL();if(!CFG.web||!u)return;fetch(u+'?action=board&set='+(CFG.short?'S':'F')).then(r=>r.json()).then(j=>{if(!j||!Array.isArray(j.rows))return;
+function fetchWebBoard(){const u=netURL();if(!CFG.web||!u)return;getJSON(u+'?action=board&set='+(CFG.short?'S':'F')+(ROOM.code&&ROOM.state==='open'?'&room='+encodeURIComponent(ROOM.code):'')).then(j=>{if(!j||!Array.isArray(j.rows))return;
   GS.webBoard=j.rows.map(r=>({id:'w-'+(r.sid||'')+r.name,callsign:r.name,stars:+r.stars||0,cleared:+r.cleared||0,at:0,so:r.code&&r.so?{[r.code]:{pts:+r.so,time:'',flags:''}}:{}}));renderBoard();}).catch(()=>{});}
 function gameFormURL(){const F=CFG.form;if(!F||!F.url)return'';const g=gameSum();
   const v={name:GS.st.callsign||'',sid:GS.st.sid||'',set:GSET,code:GS.code,score:g.got,total:g.tot,passed:`${g.cl}/${LEVELS.length}`,stars:`${g.stars}/${LEVELS.length*3}`,so:g.so,chk:gameCode()};
@@ -311,7 +327,7 @@ function showBoard(){stopTimer();O={};tapHandler=null;setStageView('map',false);
     <p class="muted" style="font-size:13px">${status}</p><div id="boardbox"></div>`);
   if(CFG.web){on('websend',()=>{if(!String(GS.st.callsign||'').trim()){$('#netst').textContent='กรอกยศ ชื่อ-สกุล แล้วกดบันทึกก่อนส่งคะแนน';return;}$('#netst').textContent='กำลังส่ง…';gameSubmit();});fetchWebBoard();}
   else{const fg=$('#formgo');fg.addEventListener('click',e=>{if(!String(GS.st.callsign||'').trim()){e.preventDefault();$('#sharemsg').textContent='กรอกยศ ชื่อ-สกุล แล้วกดบันทึกก่อนส่งคะแนน';return;}const u=gameFormURL();if(!u){e.preventDefault();return;}fg.href=u;});}
-  on('cssave',()=>{GS.st.callsign=val('cs').trim().slice(0,40);GS.st.sid=val('sid').trim().slice(0,20);saveLocal();saveRemote();gameSubmit();showBoard();const b=$('#cssave');b.textContent='บันทึกแล้ว';setTimeout(()=>{if(b.isConnected)b.textContent='บันทึก';},1500);});renderBoard();}
+  on('cssave',()=>{GS.st.callsign=val('cs').trim().slice(0,40);GS.st.sid=val('sid').trim().slice(0,20);saveLocal();try{if(GS.st.callsign)localStorage.setItem('lnav-name',GS.st.callsign);if(GS.st.sid)localStorage.setItem('lnav-sid',GS.st.sid);}catch(e){}saveRemote();gameSubmit();showBoard();const b=$('#cssave');b.textContent='บันทึกแล้ว';setTimeout(()=>{if(b.isConnected)b.textContent='บันทึก';},1500);});renderBoard();}
 function showHelp(){stopTimer();O={};tapHandler=null;setStageView('map',false);fitView();
   setSheet(`<div class="eyebrow">วิธีเล่น</div><h2>คู่มือภาคสนาม</h2>
     <p><b>แคมเปญ</b> ${LEVELS.length} ภารกิจตามลำดับบทเรียน ตั้งแต่เครื่องหมายแผนที่ พิกัดกริดและพิกัดภูมิศาสตร์ เข็มทิศเลนเซติก การใช้กลางคืน จนถึงเดินทางนับก้าว ผ่านภารกิจ (60 คะแนน) เพื่อปลดล็อกและเลื่อนยศ ตั้งแต่นักเรียนถึงนาวาอากาศตรี</p><h3>เข็มทิศเลนเซติก</h3><ul style="padding-left:20px;font-size:14px"><li>มองหน้าปัด: ถือระดับเอว อ่านค่าใต้เส้นขีดดำ · ยกขึ้นเล็ง: มองช่องเล็งหลัง ให้เส้นเล็งทับที่หมาย อ่านผ่านแว่นขยาย</li><li>ตัวเลขแดงด้านในคือองศา ตัวเลขดำด้านนอกคือมิล ×100</li><li>วงแหวนคลิก 1 คลิก = 3° · กลางคืนไม่มีแสง: หมุนทวนเข็ม มุม÷3 คลิก แล้วหันจนลูกศรพรายน้ำตรงขีดพรายน้ำ</li><li>อยู่ห่างสายไฟแรงสูง 55 ม. · รถ 18 ม. · สายโทรศัพท์/ลวดหนาม 10 ม. · ปืนกล 2.7 ม. · ปืนพก 0.9 ม.</li></ul>

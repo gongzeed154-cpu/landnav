@@ -11,7 +11,7 @@ PAGES = [  # output, head, app, short, title
     ('game.html',           'src/game_head.html',     'src/game_app.js',     False, 'ปฏิบัติการเข็มทิศ'),
     ('game-short.html',     'src/game_head.html',     'src/game_app.js',     True,  'ปฏิบัติการเข็มทิศ ฉบับย่อ'),
 ]
-EXTRA_CSS = '[hidden]{display:none!important}body{margin:0}.homebtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;border:1px solid var(--line);text-decoration:none;color:inherit;margin-right:6px;flex:none}'
+EXTRA_CSS = '@media (max-width:899px){body.comp-on .sheet{max-height:31vh!important;max-height:31dvh!important}body.comp-big .sheet{max-height:22vh!important;max-height:22dvh!important}body.comp-big{grid-template-rows:auto minmax(0,1fr) auto!important}body.comp-big header.top{display:none!important}}#comp{bottom:56px!important}.turnbar{bottom:0!important;padding:8px 12px!important;background:#11140f;align-items:center}.turnbar .btn{min-height:40px}#turnhint{bottom:16px!important;max-width:38%!important;font-size:11px}.compbar #cbig[aria-pressed="true"]{background:#4b6a2e;color:#fff}[hidden]{display:none!important}body{margin:0}.homebtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;border:1px solid var(--line);text-decoration:none;color:inherit;margin-right:6px;flex:none}'
 
 def build(out, head, app, short, title):
     h = read(head)
@@ -31,7 +31,7 @@ def build(out, head, app, short, title):
             + head_part + '\n<script src="config.js"></script>\n</head>\n<body>\n' + body_part +
             '\n<script>\n(function(){\n\'use strict\';\n' + cfg + '\n' + read('src/core.js') + '\n' + read(app) +
             '\n})();\n</script>\n<script>if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(function(){});</script>\n</body>\n</html>\n')
-    open(S(out), 'w', encoding='utf-8').write(html)
+    open(S(out), 'w', encoding='utf-8', newline='\n').write(html)
     print('built', out, len(html) // 1024, 'KB')
 
 for p in PAGES:
