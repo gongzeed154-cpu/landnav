@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2f3d27">
+<title>ต้นแบบท่าถือเข็มทิศ</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<style>
+:root{--bg:#e8ebe0;--surface:#fbfcf7;--ink:#1b2117;--muted:#5a6450;--line:#cbd2bf;--accent:#4b6a2e;--accent-ink:#fff;--accent-soft:#dfe8d1;--stage:#141812}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#12160f;--surface:#1a2016;--ink:#e4e9dc;--muted:#9ba68f;--line:#343f2c;--accent:#a3c472;--accent-ink:#12160f;--accent-soft:#2b3622}}
+:root[data-theme="dark"]{--bg:#12160f;--surface:#1a2016;--ink:#e4e9dc;--muted:#9ba68f;--line:#343f2c;--accent:#a3c472;--accent-ink:#12160f;--accent-soft:#2b3622}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "IBM Plex Sans Thai",system-ui,sans-serif}
+header{display:flex;align-items:center;gap:8px;padding:10px 16px;background:#2f3d27;color:#fff}
+header a{color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.35);border-radius:8px;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center}
+header b{font:700 18px "Chakra Petch",sans-serif}
+header small{opacity:.7;margin-left:auto}
+main{max-width:980px;margin:0 auto;padding:14px 16px 32px;display:grid;gap:14px}
+.tabs{display:flex;gap:8px}
+.tabs button{flex:1;padding:10px 8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;font:600 14px inherit;font-family:inherit;cursor:pointer;min-height:44px}
+.tabs button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.cols{display:grid;gap:14px;grid-template-columns:1fr}
+@media (min-width:820px){.cols{grid-template-columns:1fr 1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px}
+.card h2{margin:0 0 6px;font:700 16px "Chakra Petch","IBM Plex Sans Thai",sans-serif}
+#fig{width:100%;height:auto;display:block;background:var(--accent-soft);border-radius:8px}
+.stage{position:relative;background:var(--stage);border-radius:10px;overflow:hidden;display:grid}
+.stage canvas{width:100%;display:block}
+#pano{height:150px}
+#dial{height:300px}
+.hud{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.read{font:700 22px "Chakra Petch",sans-serif;font-variant-numeric:tabular-nums}
+.read small{font:500 12px "IBM Plex Sans Thai";color:var(--muted);margin-left:4px}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;min-height:40px;min-width:48px;padding:0 12px;font:600 14px inherit;font-family:inherit;cursor:pointer;touch-action:manipulation}
+ol{margin:6px 0 0;padding-left:20px}
+li{margin:4px 0}
+.tip{margin-top:8px;padding:8px 10px;border-left:4px solid var(--accent);background:var(--accent-soft);border-radius:4px;font-size:14px}
+.note{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<header><a href="./" aria-label="หน้าแรก" title="หน้าแรก">⌂</a><b>ต้นแบบท่าถือเข็มทิศ</b><small>Prototype</small></header>
+<main>
+  <div class="tabs" role="tablist" id="tabs">
+    <button type="button" data-p="center" aria-pressed="true">① ท่ากลางตัว (Center-hold)</button>
+    <button type="button" data-p="cheek" aria-pressed="false">② ท่าแนบแก้ม (Compass-to-cheek)</button>
+  </div>
+  <div class="cols">
+    <section class="card">
+      <h2 id="ptitle"></h2>
+      <svg id="fig" viewBox="0 0 320 240" role="img" aria-label="ภาพท่าทางการถือเข็มทิศ มองจากด้านข้าง"></svg>
+      <ol id="steps"></ol>
+      <div class="tip" id="tip"></div>
+    </section>
+    <section class="card">
+      <h2>มุมมองเข็มทิศ</h2>
+      <div class="stage">
+        <canvas id="pano"></canvas>
+        <canvas id="dial"></canvas>
+      </div>
+      <div class="hud">
+        <button class="btn" id="l10" aria-label="หันซ้าย 10 องศา">◀ 10°</button>
+        <button class="btn" id="l1" aria-label="หันซ้าย 1 องศา">◀ 1°</button>
+        <button class="btn" id="r1" aria-label="หันขวา 1 องศา">1° ▶</button>
+        <button class="btn" id="r10" aria-label="หันขวา 10 องศา">10° ▶</button>
+        <span class="read" id="read">0°<small>องศา</small></span>
+      </div>
+      <p class="note">ลากบนภาพเพื่อหมุนตัว · ในท่านี้ทิศที่อ่านได้คือทิศที่ลำตัวหันไป (มุมกริด = มุมแม่เหล็ก)</p>
+    </section>
+  </div>
+</main>
+<script>
+(function(){
+'use strict';
+const TAU=Math.PI*2,wrap=a=>((a%360)+360)%360,angDiff=(a,b)=>((a-b+540)%360)-180,clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const DPR=Math.min(2,window.devicePixelRatio||1);
+const $=s=>document.querySelector(s);
+
+/* ---------- postures: all text and figure geometry live here ---------- */
+const POSTURES={
+  center:{
+    title:'ท่ากลางตัว (Center-hold) — ใช้เดินตามทิศ',
+    steps:['เปิดฝาตลับให้ตั้งฉาก (90°) และพับก้านเล็งหลังให้ตั้งตรง','สอดนิ้วหัวแม่มือเข้าห่วงจับ นิ้วชี้แนบข้างตัวเรือน ใช้มืออีกข้างประคอง','ถือเข็มทิศระดับ<b>กลางลำตัว (ระดับเอว)</b> ให้ตลับอยู่ในแนวนอน','ศอกแนบลำตัวทั้งสองข้าง','หันทั้งตัวไปทางเป้าหมาย แล้วก้มอ่านมุมใต้เส้นดัชนีดำ'],
+    tip:'ท่านี้ไม่ต้องเล็ง ใช้ได้ทั้งเดินและยืนนิ่ง ความแม่นยำต่ำกว่าท่าแนบแก้มเล็กน้อย เหมาะกับการเดินตามทิศทางต่อเนื่อง',
+    fig:{hand:[196,138],card:[196,138],lift:0}
+  },
+  cheek:{
+    title:'ท่าแนบแก้ม (Compass-to-cheek) — ใช้เล็งหาทิศ',
+    steps:['เปิดฝาตลับให้ตั้งฉาก (90°) และพับก้านเล็งหลังทำมุมราว 45°','สอดนิ้วหัวแม่มือเข้าห่วงจับ นิ้วชี้แนบข้างตัวเรือน','ยกเข็มทิศขึ้น<b>แนบแก้ม</b> ให้ช่องเล็งหลังอยู่ใต้ตา','ลืมตาข้างเดียว มองผ่านช่องเล็งหลัง ให้เส้นเล็งหน้าทับที่หมาย','ในแว่นขยาย ตาเดียวกันอ่านมุมใต้เส้นดัชนีดำ ศอกแนบลำตัวให้นิ่ง'],
+    tip:'ท่านี้แม่นที่สุด ใช้เล็งหาที่หมายและวัดมุมภาคแม่เหล็กเพื่อลงแผนที่ — เล็งทีละจุด ห้ามเดินขณะอ่านค่า',
+    fig:{hand:[168,70],card:[168,70],lift:1}
+  }
+};
+let posture='center';
+
+/* ---------- side-view figure (SVG) ---------- */
+function drawFigure(){
+  const f=POSTURES[posture].fig,ink=getComputedStyle(document.body).color,sk='#c99a76';
+  const [hx,hy]=f.hand,eyeX=160,eyeY=48;
+  const arm=(sx,sy)=>`M${sx} ${sy} L${(sx+hx)/2-14} ${(sy+hy)/2+22} L${hx} ${hy}`;
+  const cheek=f.lift;
+  const compass=cheek
+    ? `<g transform="translate(${hx},${hy})"><rect x="-4" y="-18" width="8" height="30" rx="2" fill="#4b5a35"/><rect x="-26" y="-34" width="22" height="3" fill="#4b5a35" transform="rotate(-8 -4 -30)"/><line x1="0" y1="-18" x2="-34" y2="-52" stroke="#222" stroke-width="1.5"/></g>`
+    : `<g transform="translate(${hx},${hy})"><rect x="-22" y="-3" width="44" height="7" rx="2" fill="#4b5a35"/><rect x="-22" y="-27" width="4" height="24" fill="#4b5a35"/><line x1="-20" y1="-27" x2="-20" y2="-3" stroke="#222"/></g>`;
+  const sight=cheek
+    ? `<path d="M${eyeX+6} ${eyeY} L${hx-34} ${hy-52} L248 24" fill="none" stroke="#e0332a" stroke-dasharray="4 3" stroke-width="1.4"/><circle cx="248" cy="24" r="4" fill="#e0332a"/><text x="236" y="14" font-size="10" fill="${ink}">ที่หมาย</text>`
+    : `<path d="M${eyeX+3} ${eyeY+8} L${hx} ${hy-3}" fill="none" stroke="#e0332a" stroke-dasharray="4 3" stroke-width="1.4"/><path d="M${eyeX+22} ${eyeY+2} H300" stroke="${ink}" stroke-opacity=".35" stroke-dasharray="2 4"/><text x="236" y="${eyeY-2}" font-size="10" fill="${ink}" opacity=".7">ทิศที่หันไป →</text>`;
+  $('#fig').innerHTML=`
+    <line x1="10" y1="226" x2="310" y2="226" stroke="${ink}" stroke-opacity=".4"/>
+    <g stroke="${ink}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M150 128 L146 226"/><path d="M150 128 L168 226"/>
+      <path d="M150 128 L150 76" stroke-width="16"/>
+    </g>
+    <circle cx="${eyeX}" cy="${eyeY}" r="17" fill="${sk}" stroke="${ink}" stroke-width="1.5"/>
+    <path d="M143 ${eyeY-3} Q${eyeX} ${eyeY-24} ${eyeX+16} ${eyeY-6} Z" fill="${ink}"/>
+    <circle cx="${eyeX+9}" cy="${eyeY}" r="2" fill="#111"/>
+    <path d="${arm(152,82)}" stroke="${sk}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M152 82 l6 8" stroke="${ink}" stroke-width="3" opacity="0"/>
+    ${compass}${sight}
+    <text x="14" y="${cheek?20:236}" font-size="11" fill="${ink}" opacity=".75">${cheek?'ยกแนบแก้ม ระดับตา':'ถือระดับเอว'}</text>`;
+}
+
+function setPosture(p){
+  posture=p;const d=POSTURES[p];
+  $('#ptitle').textContent=d.title;$('#steps').innerHTML=d.steps.map(s=>'<li>'+s+'</li>').join('');$('#tip').textContent=d.tip;
+  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.p===p));
+  $('#pano').style.display=p==='cheek'?'block':'none';
+  $('#pano').style.height=p==='cheek'?'150px':'0';
+  $('#dial').style.height=p==='cheek'?'210px':'300px';
+  drawFigure();resize();
+}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setPosture(b.dataset.p));
+
+/* ---------- compass model (card swings like the real thing) ---------- */
+const S={heading:30,disp:30,vel:0,raf:0};
+function step(){const d=angDiff(S.heading,S.disp);S.vel=S.vel*0.8+d*0.07;S.disp=wrap(S.disp+S.vel);return Math.abs(d)>0.02||Math.abs(S.vel)>0.02;}
+function frame(){S.raf=0;const anim=step();drawPano();drawDial();$('#read').innerHTML=Math.round(S.disp)%360+'°<small>องศา</small>';if(anim)req();}
+const req=()=>{if(!S.raf)S.raf=requestAnimationFrame(frame);};
+
+/* synthetic skyline: layered ridges + three marked targets (prototype only, not the exam map) */
+const TARGETS=[{az:20,name:'ยอดเขา A',h:.2},{az:75,name:'เสาวิทยุ',h:.12},{az:140,name:'วัด',h:.07}];
+const ridge=(az,s)=>.45*Math.sin(az*TAU/360*3+s)+.3*Math.sin(az*TAU/360*7+s*2)+.15*Math.sin(az*TAU/360*13+s*3);
+const FOV=40;
+function size(c){const w=c.clientWidth,h=c.clientHeight;if(c.width!==Math.round(w*DPR)||c.height!==Math.round(h*DPR)){c.width=Math.round(w*DPR);c.height=Math.round(h*DPR);}const x=c.getContext('2d');x.setTransform(DPR,0,0,DPR,0,0);return[x,w,h];}
+function drawPano(){
+  const c=$('#pano');if(posture!=='cheek')return;const[x,w,h]=size(c);if(!w||!h)return;
+  const ppd=w/FOV,y0=h*0.72;
+  const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,'#7fb0d4');g.addColorStop(.7,'#d8e6ec');g.addColorStop(1,'#d8e6ec');x.fillStyle=g;x.fillRect(0,0,w,h);
+  [[0,.55,'#93a68c'],[1.7,.4,'#5c7150']].forEach(([s,k,col])=>{x.fillStyle=col;x.beginPath();x.moveTo(0,h);for(let px=0;px<=w;px+=3){const az=S.heading+(px-w/2)/ppd;x.lineTo(px,y0-(ridge(az,s)+.6)*k*h*.35);}x.lineTo(w,h);x.closePath();x.fill();});
+  for(const t of TARGETS){const da=angDiff(t.az,S.heading);if(Math.abs(da)>FOV/2+3)continue;const px=w/2+da*ppd,py=y0-(ridge(t.az,0)+.6)*.55*h*.35-t.h*h*.6;
+    x.fillStyle='#e0332a';x.strokeStyle='#fff';x.lineWidth=1.2;x.beginPath();x.moveTo(px,py);x.lineTo(px+6,py-10);x.lineTo(px-6,py-10);x.closePath();x.fill();x.stroke();
+    x.font='600 12px "IBM Plex Sans Thai",sans-serif';x.textAlign='center';x.lineWidth=3;x.strokeStyle='rgba(255,255,255,.85)';x.strokeText(t.name,px,py-16);x.fillStyle='#14180f';x.fillText(t.name,px,py-16);}
+  // rear-sight slot + front sighting wire
+  const sw=Math.max(72,w*0.3);x.fillStyle='rgba(16,18,14,.5)';x.beginPath();x.rect(0,0,w,h);x.roundRect?x.roundRect(w/2-sw/2,-20,sw,h*0.92+20,sw/2):x.rect(w/2-sw/2,0,sw,h*0.92);x.fill('evenodd');
+  x.strokeStyle='#0b0b0b';x.lineWidth=2;x.beginPath();x.moveTo(w/2,0);x.lineTo(w/2,h*0.92);x.stroke();
+  x.fillStyle='#9aa58f';x.font='500 11px "IBM Plex Sans Thai",sans-serif';x.textAlign='left';x.fillText('มองผ่านช่องเล็งหลัง: เส้นเล็ง → ที่หมาย',8,h-6);
+}
+
+/* dial card as printed on the issued compass: mils outside, red degrees inside, luminous north arrow */
+function drawCard(c,R){
+  const g=c.createRadialGradient(0,0,R*0.1,0,0,R);g.addColorStop(0,'#f4f3ee');g.addColorStop(1,'#e2e0d8');c.fillStyle=g;c.beginPath();c.arc(0,0,R,0,7);c.fill();
+  c.strokeStyle='#1a1a1a';for(let m=0;m<6400;m+=20){const a=m/6400*TAU,big=m%200===0,mid=m%100===0,L=R*(big?0.075:mid?0.055:0.032);c.lineWidth=big?Math.max(1,R*0.006):Math.max(.5,R*0.003);
+    c.beginPath();c.moveTo(Math.sin(a)*R*0.985,-Math.cos(a)*R*0.985);c.lineTo(Math.sin(a)*(R*0.985-L),-Math.cos(a)*(R*0.985-L));c.stroke();
+    if(big&&m>0){c.save();c.rotate(a);c.fillStyle='#1a1a1a';c.font='600 '+(R*0.075).toFixed(1)+'px Arial,sans-serif';c.textAlign='center';c.textBaseline='top';c.fillText(String(m/100),0,-R*0.9);c.restore();}}
+  c.strokeStyle='#c8202a';for(let d=0;d<360;d+=5){const a=d*Math.PI/180,big=d%10===0,r1=R*0.79,L=R*(big?0.1:0.065);c.lineWidth=big?Math.max(1,R*0.008):Math.max(.6,R*0.005);
+    c.beginPath();c.moveTo(Math.sin(a)*r1,-Math.cos(a)*r1);c.lineTo(Math.sin(a)*(r1-L),-Math.cos(a)*(r1-L));c.stroke();
+    if(d%20===0&&d!==0){c.save();c.rotate(a);c.fillStyle='#c8202a';c.font='600 '+(R*0.08).toFixed(1)+'px Arial,sans-serif';c.textAlign='center';c.textBaseline='top';c.fillText(String(d),0,-R*0.665);c.restore();}}
+  c.fillStyle='rgba(60,62,60,.55)';c.fillRect(-R*0.075,-R*0.62,R*0.15,R*1.24);
+  c.fillStyle='#151515';c.beginPath();c.moveTo(0,-R*0.79);c.lineTo(R*0.14,-R*0.5);c.lineTo(-R*0.14,-R*0.5);c.closePath();c.fill();
+  c.fillStyle='#e8f3c8';c.fillRect(-R*0.022,-R*0.72,R*0.044,R*0.17);
+  for(const[sx,t]of[[-1,'W'],[1,'E']]){c.fillStyle='#e3edc0';c.fillRect(sx*R*0.42-R*0.1,-R*0.1,R*0.2,R*0.2);c.fillStyle='#111';c.font='700 '+(R*0.15).toFixed(1)+'px Arial,sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText(t,sx*R*0.42,R*0.005);}
+  const g2=c.createRadialGradient(0,0,0,0,0,R*0.12);g2.addColorStop(0,'#fafafa');g2.addColorStop(1,'#8b8f93');c.fillStyle=g2;c.beginPath();c.arc(0,0,R*0.11,0,7);c.fill();
+}
+const rr=(c,x,y,w,h,r)=>{c.beginPath();c.roundRect?c.roundRect(x,y,w,h,r):c.rect(x,y,w,h);};
+function drawDial(){
+  const c=$('#dial');const[x,w,h]=size(c);if(!w||!h)return;
+  x.fillStyle='#141812';x.fillRect(0,0,w,h);
+  const D=S.disp,OL='#4b5a35';
+  if(posture==='cheek'){// view through the magnifying lens of the rear sight
+    const rl=Math.max(30,Math.min(w*0.38,(h-30)/2.2)),lx=w/2,ly=Math.min(h*0.47,rl*1.08+4);
+    x.fillStyle='#0c0d0c';rr(x,lx-rl*1.45,ly-rl*1.55,rl*2.9,rl*3.0,rl*0.5);x.fill();
+    x.save();x.beginPath();x.arc(lx,ly,rl,0,7);x.clip();x.fillStyle='#d9d7cf';x.fillRect(lx-rl,ly-rl,rl*2,rl*2);
+    const Rb=rl*2.7;x.save();x.translate(lx,ly+Rb*0.74);x.rotate(-D*Math.PI/180);drawCard(x,Rb);x.restore();
+    x.strokeStyle='#050505';x.lineWidth=2;x.beginPath();x.moveTo(lx,ly-rl);x.lineTo(lx,ly+rl*0.55);x.stroke();
+    const gl=x.createRadialGradient(lx-rl*0.4,ly-rl*0.5,rl*0.05,lx,ly,rl);gl.addColorStop(0,'rgba(255,255,255,.35)');gl.addColorStop(.5,'rgba(255,255,255,.04)');gl.addColorStop(1,'rgba(0,0,0,.35)');x.fillStyle=gl;x.fillRect(lx-rl,ly-rl,rl*2,rl*2);
+    x.restore();x.strokeStyle='#2b2b2b';x.lineWidth=3;x.beginPath();x.arc(lx,ly,rl,0,7);x.stroke();
+    x.fillStyle='#9aa58f';x.font='500 11px "IBM Plex Sans Thai",sans-serif';x.textAlign='center';x.textBaseline='top';if(ly+rl+18<h)x.fillText('มองผ่านแว่นขยาย อ่านมุมใต้เส้นดัชนีสีดำ',lx,Math.min(h-15,ly+rl+6));
+    return;}
+  // centre-hold: compass level in front of the body, seen from above
+  const R=Math.max(30,Math.min(w*0.34,(h-10)/3.6)),cx=w/2,cy=h*0.5+R*0.1;
+  x.fillStyle=OL;rr(x,cx-R*0.82,cy-R*2.0,R*1.64,R*0.8,R*0.25);x.fill();
+  x.fillStyle='#cfd8d6';rr(x,cx-R*0.16,cy-R*1.95,R*0.32,R*0.7,R*0.08);x.fill();x.strokeStyle='#111';x.lineWidth=1.6;x.beginPath();x.moveTo(cx,cy-R*1.95);x.lineTo(cx,cy-R*1.3);x.stroke();
+  x.fillStyle=OL;rr(x,cx-R*1.28,cy-R*1.22,R*2.56,R*2.5,R*0.22);x.fill();x.strokeStyle='#36422a';x.lineWidth=1.5;x.stroke();
+  x.fillStyle='#141414';rr(x,cx-R*0.42,cy+R*1.2,R*0.84,R*0.95,R*0.2);x.fill();
+  x.fillStyle='#151515';x.beginPath();x.arc(cx,cy,R*1.16,0,7);x.fill();
+  x.save();x.translate(cx,cy);x.rotate(-D*Math.PI/180);drawCard(x,R*0.98);x.restore();
+  x.strokeStyle='#050505';x.lineWidth=1.6;x.beginPath();x.moveTo(cx,cy-R*0.99);x.lineTo(cx,cy-R*0.18);x.stroke();
+  const gl=x.createLinearGradient(cx-R,cy-R,cx+R,cy+R);gl.addColorStop(0,'rgba(255,255,255,.18)');gl.addColorStop(.45,'rgba(255,255,255,0)');x.fillStyle=gl;x.beginPath();x.arc(cx,cy,R,0,7);x.fill();
+}
+function resize(){req();}
+window.addEventListener('resize',resize);
+
+/* ---------- controls: drag to turn the body, buttons for fine steps ---------- */
+const stage=document.querySelector('.stage');let drag=null;
+stage.style.touchAction='none';
+stage.addEventListener('pointerdown',e=>{stage.setPointerCapture(e.pointerId);drag={x:e.clientX,h:S.heading};});
+stage.addEventListener('pointermove',e=>{if(!drag)return;S.heading=wrap(drag.h-(e.clientX-drag.x)*FOV/(stage.clientWidth||300));req();});
+const end=()=>{drag=null;};stage.addEventListener('pointerup',end);stage.addEventListener('pointercancel',end);
+const turn=d=>{S.heading=wrap(S.heading+d);req();};
+$('#l10').onclick=()=>turn(-10);$('#l1').onclick=()=>turn(-1);$('#r1').onclick=()=>turn(1);$('#r10').onclick=()=>turn(10);
+window.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')turn(e.shiftKey?-10:-1);else if(e.key==='ArrowRight')turn(e.shiftKey?10:1);});
+
+setPosture('center');
+})();
+</script>
+</body>
+</html>
