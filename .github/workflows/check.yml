@@ -38,4 +38,4 @@ jobs:
           }
           process.exit(bad ? 1 : 0);
           JS
-          node "$RUNNER_TEMP/syntax.js" practice.html practice-short.html game.html game-short.html compass.html gesture-compass.html index.html poster.html config.js sw.js qr.js
+          node "$RUNNER_TEMP/syntax.js" practice.html practice-short.html game.html game-short.html compass.html gesture-compass.html manual.html index.html poster.html config.js sw.js qr.js
