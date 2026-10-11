@@ -65,13 +65,13 @@ button{cursor:pointer}
 body.night .tb{background:#140202;color:#ff5a4a;border-color:#3a0d08}
 body.night .tb.pri{background:#ff3b2b;color:#000;border-color:#ff3b2b}
 /* voice mode: the controls that sat over the view go away; spoken commands replace them */
-body.voiceui .vctl,body.voiceui .touchbar,body.voiceui .mtools{display:none!important}
+body.voiceui .vctl,body.voiceui .touchbar,body.voiceui .mtools,body.voiceui .mbear{display:none!important}
 .vtag{display:inline-flex;align-items:center;gap:6px;max-width:min(46vw,360px);font:500 13px var(--f-body);padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vtag i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--line)}
 .vtag.on i{background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent)}
 .vtag.hit{color:var(--ink);border-color:var(--good)}
 .vtag.warn{color:var(--warn);border-color:var(--warn)}
-.tooltag{position:absolute;left:10px;top:10px;z-index:3;font:600 12.5px var(--f-display);padding:4px 10px;border-radius:999px;background:rgba(251,252,247,.92);color:#1b2117;border:1px solid rgba(0,0,0,.2)}
+.tooltag{position:absolute;left:124px;top:10px;max-width:calc(100% - 270px);z-index:3;font:600 12.5px var(--f-display);padding:4px 10px;border-radius:999px;background:rgba(251,252,247,.92);color:#1b2117;border:1px solid rgba(0,0,0,.2)}
 details.vhelp{margin-top:10px;font-size:13.5px}
 details.vhelp summary{cursor:pointer;color:var(--muted)}
 .vgrid{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 12px;margin-top:6px}
@@ -91,6 +91,10 @@ body.night .vread{color:#ff5a4a;background:#140202}
 .mtool.hov{outline:3px solid #f2b632;outline-offset:1px}
 .mtool.pri{background:#1b2117;color:#fff}
 .mtool:disabled{opacity:.45}
+.mbear{position:absolute;left:124px;right:10px;bottom:10px;z-index:3;display:flex;gap:6px;align-items:center;flex-wrap:wrap;pointer-events:none}
+.mbear>*{pointer-events:auto}
+.mbear .mtool{min-width:44px;text-align:center;padding:6px 10px}
+.mbear input{width:5.5em;min-height:44px;border:1px solid rgba(0,0,0,.25);border-radius:10px;padding:0 8px;font:600 18px var(--f-mono);text-align:center;background:rgba(251,252,247,.95);color:#1b2117}
 .note2{font-size:13.5px;margin:8px 0;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;background:var(--surface-2)}
 .note2 b{font-family:var(--f-mono)}
 .modetag{position:absolute;left:10px;top:10px;z-index:3;font:600 12.5px var(--f-display);letter-spacing:.04em;padding:4px 10px;border-radius:999px;background:rgba(20,24,18,.84);color:#e8eadf;border:1px solid rgba(255,255,255,.22)}
@@ -207,7 +211,7 @@ textarea.copy{width:100%;min-height:120px;font:12.5px var(--f-mono);margin-top:8
     <span>เข็มทิศด้วยท่าทาง</span><small>ต้นแบบ ระยะที่ 1</small>
   </div>
   <div class="topr">
-    <button class="vtag" id="voiceTag" title="คำสั่งเสียง: กดเพื่อเปิด/ปิดไมค์" hidden><i></i><span id="voiceTxt">คำสั่งเสียงปิดอยู่</span></button>
+    <button class="vtag" id="voiceTag" title="คำสั่งเสียง: กดเพื่อเปิด/ปิดไมค์"><i></i><span id="voiceTxt">ไมค์ปิด (กดเพื่อเปิด)</span></button>
     <span class="tag" id="codeTag" title="รหัสภารกิจ">ALPHA-01</span>
     <button class="btn" id="openSet">ปรับค่าเกณฑ์</button>
     <button class="btn" id="goHome">หน้าแรก</button>
@@ -238,6 +242,14 @@ textarea.copy{width:100%;min-height:120px;font:12.5px var(--f-mono);margin-top:8
     <button class="mtool" data-act="compass" id="mtComp">เข็มทิศ</button>
     <button class="mtool pri" data-act="submit" id="mtSubmit">ส่งคำตอบ</button>
   </div>
+  <div class="mbear" id="mbear" hidden>
+    <button class="mtool" data-step="-10" aria-label="ลดมุม 10 องศา">−10</button><button class="mtool" data-step="-1" aria-label="ลดมุม 1 องศา">−1</button>
+    <input id="bearIn" type="number" inputmode="numeric" min="0" max="359" step="1" value="0" aria-label="มุมภาคที่จะลากเส้น หน่วยองศา">
+    <button class="mtool" data-step="1" aria-label="เพิ่มมุม 1 องศา">+1</button><button class="mtool" data-step="10" aria-label="เพิ่มมุม 10 องศา">+10</button>
+    <button class="mtool pri" data-act="bear" id="mtBear">ลากเส้นจากกลางแผ่น</button>
+    <button class="mtool" data-act="cross" id="mtCross">ปักจุดตัด</button>
+    <button class="mtool" data-act="lock" id="mtLock">ล็อกแผ่น</button>
+  </div>
   <div class="camwrap" id="camwrap" hidden><canvas id="pv" width="320" height="240" aria-label="ภาพจากกล้องพร้อมจุดที่ตรวจจับได้"></canvas><span id="fps"></span></div>
   <div class="touchbar" id="touchbar"></div>
 </main>
@@ -259,14 +271,15 @@ textarea.copy{width:100%;min-height:120px;font:12.5px var(--f-mono);margin-top:8
         </div>
       </div>
     </div>
+    <label class="chk"><input type="checkbox" id="useVoice"> ใช้คำสั่งเสียงด้วย (เปิดไมค์) · ปิดไว้เป็นค่าเริ่มต้น เพราะ Chrome ถามสิทธิ์ไมค์ซ้ำเมื่อเปิดไฟล์จากเครื่อง</label>
     <div class="actions">
       <button class="btn primary" id="startCam">เปิดกล้องและไมค์ แล้วเริ่ม</button>
       <button class="btn" id="startTouch">ฝึกแบบแตะจอ (ไม่ใช้กล้อง)</button>
     </div>
     <ul class="gest" aria-label="ท่าที่ใช้">
       <li><span class="code">U3</span><b>หันศีรษะ</b><span>หันเกินเขตตาย 5° ภาพรอบตัวจะหมุนตาม หันกลับตรงเพื่อหยุด</span></li>
-      <li><span class="code">U1</span><b>ยกขึ้นเล็ง</b><span>ยกมือขึ้นระดับคาง-แก้ม ไม่บังจมูก หมุนช้าลงเพื่อเล็งละเอียด</span></li>
-      <li><span class="code">U2</span><b>มองหน้าปัด</b><span>ลดมือลงต่ำกว่าคาง (หรือพ้นกรอบภาพ)</span></li>
+      <li><span class="code">U1</span><b>ยกขึ้นเล็ง (สองมือ)</b><span>ยกมือทั้งสองข้างขึ้นระดับคาง-แก้มเหมือนถือเข็มทิศ ไม่บังจมูก หมุนช้าลงเพื่อเล็งละเอียด มือเดียวไม่นับ</span></li>
+      <li><span class="code">U2</span><b>มองหน้าปัด</b><span>ลดมือลงต่ำกว่าคาง (หรือพ้นกรอบภาพ) หรือเหลือมืออยู่ใกล้หน้าไม่เกินข้างเดียว</span></li>
       <li><span class="code">H2</span><b>ชูนิ้วโป้ง</b><span>ค้าง 0.8 วินาที เพื่อส่งคำตอบหรือไปรอบถัดไป</span></li>
       <li><span class="code">H5</span><b>ชูนิ้ว 1-4</b><span>ค้าง 1 วินาที เพื่อเลือกคำตอบข้อที่ 1-4</span></li>
       <li><span class="code">H1</span><b>หนีบหมุน</b><span>แตะโป้งกับนิ้วชี้แล้วบิดข้อมือ ทุก 6° = 1 คลิก ปล่อยแล้วหนีบใหม่เพื่อหมุนต่อ</span></li>
@@ -275,13 +288,13 @@ textarea.copy{width:100%;min-height:120px;font:12.5px var(--f-mono);margin-top:8
       <li><span class="code">U5</span><b>เงย/ก้มศีรษะ</b><span>เงยค้างไว้เล็กน้อย ภาพจะมองสูงขึ้น ใช้เมื่อยอดเขาสูงเกินภาพ</span></li>
       <li><span class="code">H8</span><b>สองฝ่ามือ</b><span>แบมือทั้งสองข้าง กางออก = ซูมเข้า หุบเข้า = ซูมออก มุมกว้างขึ้น (ใช้ได้ทั้งภาพรอบตัวและแผนที่)</span></li>
       <li><span class="code">H9</span><b>ชู 2 นิ้ว</b><span>ค้าง 1 วินาที เพื่อสลับระหว่างเข็มทิศกับแผนที่</span></li>
-      <li><span class="code">M1</span><b>บนแผนที่: ชี้ หนีบ กำ</b><span>ชี้นิ้ว = เคอร์เซอร์ · ชี้ค้างบนปุ่ม = กด · หนีบ = กดและลาก (วางแผ่นวัดมุม ขีดเส้น ปักจุด) · กำมือ = ลากแผนที่</span></li>
+      <li><span class="code">M1</span><b>บนแผนที่: ชี้ หนีบ กำ</b><span>ชี้นิ้ว = เคอร์เซอร์ · ชี้ค้างบนปุ่ม = กด · หนีบ = กดและลาก (วางแผ่นวัดมุม ขีดเส้น ปักจุด) · กำมือ = ลากแผนที่ · มีปุ่ม ล็อกแผ่น / ลากเส้นตามมุม / ปักจุดตัด</span></li>
       <li><span class="code">H3</span><b>แบมือค้าง</b><span>ค้าง 1.5 วินาที เพื่อหยุดพัก</span></li>
     </ul>
     <div class="note">
       <span>นั่งหรือยืนห่างกล้อง 0.6-1 เมตร ให้เห็นใบหน้าและมือทั้งสองข้าง แสงอยู่ด้านหน้า ไม่ย้อนแสง</span>
       <span>ภาพจากกล้องประมวลผลในเครื่องนี้เท่านั้น ไม่บันทึกและไม่ส่งออก กล้องและไมค์จะปิดเมื่อกด "หน้าแรก" หรือเลือกฝึกแบบแตะจอ</span>
-      <span>คำสั่งเสียงใช้ระบบรู้จำเสียงของเบราว์เซอร์ Chrome/Edge ซึ่งอาจส่งเสียงไปประมวลผลที่เซิร์ฟเวอร์ของผู้ให้บริการ ปิดไมค์ได้ที่ปุ่มมุมบน เมื่อไม่มีไมค์ ปุ่มบนภาพจะกลับมาให้ใช้แทน</span>
+      <span>คำสั่งเสียงใช้ระบบรู้จำเสียงของเบราว์เซอร์ Chrome/Edge ซึ่งอาจส่งเสียงไปประมวลผลที่เซิร์ฟเวอร์ของผู้ให้บริการ ปิดไมค์ได้ที่ปุ่มมุมบน เมื่อไม่มีไมค์ ปุ่มบนภาพจะกลับมาให้ใช้แทน ถ้าเปิดไฟล์จากเครื่อง ไมค์จะหยุดเองเมื่อเบราว์เซอร์ตัดรอบการฟัง (ไม่ถามซ้ำ) เปิดผ่าน http://localhost หรือ https จะฟังต่อเนื่องและจำสิทธิ์ไว้</span>
       <span>กล้องใช้ได้เมื่อเปิดไฟล์นี้ด้วย Chrome หรือ Edge โดยตรง หรือผ่านลิงก์ https</span>
     </div>
   </div>
@@ -1041,14 +1054,19 @@ function turnStep(){
   t.cur=t.from+t.d*e;C.heading=wrap360(t.cur);dirty=true;if(k>=1)A.turn=null;
 }
 /* U1 / U2: where the hands are relative to the face */
+/* number of hands inside the sighting zone around the face */
+function zoneHands(){
+  const b=T.box;if(!b)return 0;
+  return GS.info.filter(i=>i.c.y>b.top-0.15*b.fh&&i.c.y<b.chin+0.45*b.fh&&Math.abs(i.c.x-b.cx)<1.8*b.fw).length;
+}
 function modeStep(now){
   const b=T.box;if(!b||now-T.faceT>1000)return;
   let cand=null;
   if(now-T.handT>700)cand='top'; // hands lowered out of the frame
   else if(GS.info.length){
-    const near=GS.info.some(i=>i.c.y>b.top-0.15*b.fh&&i.c.y<b.chin+0.45*b.fh&&Math.abs(i.c.x-b.cx)<1.8*b.fw);
-    const low=GS.info.every(i=>i.c.y>b.chin+0.6*b.fh);
-    cand=near?'sight':low?'top':null;}
+    // sighting is a two-hand pose (one hand holds the compass, the other steadies it); once up, losing track of one hand does not drop the pose
+    const near=zoneHands(),low=GS.info.every(i=>i.c.y>b.chin+0.6*b.fh);
+    cand=(C.mode==='sight'?near>=1:near>=2)?'sight':low?'top':null;}
   if(cand!==GS.modeCand){GS.modeCand=cand;GS.modeSince=now;}
   // a mode chosen by voice holds until the hands reach that same position, then the hands take over again
   if(GS.voiceMode){if(cand===C.mode&&now-GS.modeSince>SET.modeMs)GS.voiceMode=false;return;}
@@ -1105,7 +1123,7 @@ const MV={tool:'line',drag:null,hist:[],cur:null,press:false,hover:null,hoverT:0
 const curFX=new OneEuro(1.2,0.02,1),curFY=new OneEuro(1.2,0.02,1);
 A.view='compass';
 function showView(v){
-  A.view=v;const m=v==='map';stage.classList.toggle('mapview',m);mapC.hidden=!m;curC.hidden=!m;$('#mtools').hidden=!m;
+  A.view=v;const m=v==='map';stage.classList.toggle('mapview',m);mapC.hidden=!m;curC.hidden=!m;$('#mtools').hidden=!m;$('#mbear').hidden=!m;
   if(m){stage.style.gridTemplateRows='100%';$('#modeTag').hidden=true;}else{$('#modeTag').hidden=false;setMode(C.mode);}
   $('#toolTag').hidden=!m;
   endPress();MV.cur=null;MV.grab=null;MV.zoom=null;
@@ -1120,10 +1138,11 @@ function fitMapTask(){
 }
 function setTool(t){
   MV.tool=t;document.querySelectorAll('.mtool[data-tool]').forEach(b=>b.classList.toggle('on',b.dataset.tool===t));
-  $('#toolTag').textContent='เครื่องมือ: '+({pan:'เลื่อน',line:'ขีดเส้น',plate:'แผ่นวัดมุม',mark:'ปักจุด',erase:'ยางลบ'}[t]||t);
+  toolLabel();
   if(t==='plate'&&!O.plate){pushHist();O.plate={x:V.cx,y:V.cy};if(V.z<0.07||V.z>0.3)setView(V.cx,V.cy,clamp(Math.min(mapC.clientWidth,mapC.clientHeight)/5400,0.05,0.3));}
   dirty=true;
 }
+function toolLabel(){$('#toolTag').textContent='เครื่องมือ: '+({pan:'เลื่อน',line:'ขีดเส้น',plate:'แผ่นวัดมุม',mark:'ปักจุด',erase:'ยางลบ'}[MV.tool]||MV.tool)+(O.plateLock?' · แผ่นล็อก':'');}
 function pushHist(){MV.hist.push(JSON.stringify({lines:O.lines||[],marks:O.marks||[],plate:O.plate||null}));if(MV.hist.length>60)MV.hist.shift();}
 function mapUndo(){const s=MV.hist.pop();if(!s)return;const o=JSON.parse(s);O.lines=o.lines;O.marks=o.marks;O.plate=o.plate;A.backs++;dirty=true;}
 function toolAt(pt){const r=mapC.getBoundingClientRect(),el=document.elementFromPoint(r.left+pt.x,r.top+pt.y);return el&&el.closest?el.closest('.mtool'):null;}
@@ -1139,6 +1158,7 @@ function mapPress(pt){
   const el=toolAt(pt);if(el){el.click();MV.drag={type:'none'};return;}
   const m=M2(pt.x,pt.y);
   if(MV.tool==='line')MV.drag={type:'line',a:snapPt(m)};
+  else if(MV.tool==='plate'&&O.plateLock){mapNote('แผ่นถูกล็อกอยู่ กด "ปลดล็อกแผ่น" ก่อนจึงจะย้ายได้');MV.drag={type:'none'};}
   else if(MV.tool==='plate'){pushHist();if(!O.plate||!insidePlate(m)){const s=snapPt(m);O.plate={x:s.x,y:s.y};}MV.drag={type:'plate',sx:pt.x,sy:pt.y,px:O.plate.x,py:O.plate.y};}
   else if(MV.tool==='mark'){pushHist();const s=snapPt(m);(O.marks||(O.marks=[])).push({x:s.x,y:s.y,kind:'x',color:'#7a2fb5',label:'ฉัน'});MV.drag={type:'none'};}
   else if(MV.tool==='erase'){eraseAt(pt);MV.drag={type:'none'};}
@@ -1207,7 +1227,51 @@ document.querySelectorAll('.mtool').forEach(b=>b.addEventListener('click',()=>{
   else if(b.dataset.act==='undo')mapUndo();
   else if(b.dataset.act==='compass')toCompass();
   else if(b.dataset.act==='submit')submitMap();
+  else if(b.dataset.step)setBear(Number($('#bearIn').value||0)+Number(b.dataset.step));
+  else if(b.dataset.act==='bear')drawBearing(Number($('#bearIn').value||0));
+  else if(b.dataset.act==='cross')markCross(false);
+  else if(b.dataset.act==='lock')plateLock();
 }));
+/* plate lock, bearing lines drawn from the plate centre, and the intersection of two such lines = the trainee's position */
+const BEAR={len:8000};
+function mapNote(msg){const t=$('#toolTag');t.textContent=msg;clearTimeout(mapNote.t);mapNote.t=setTimeout(toolLabel,3500);}
+function syncLock(){const b=$('#mtLock');b.classList.toggle('on',!!O.plateLock);b.textContent=O.plateLock?'ปลดล็อกแผ่น':'ล็อกแผ่น';}
+function plateLock(on){
+  if(on===undefined)on=!O.plateLock;
+  if(on&&!O.plate){mapNote('วางแผ่นวัดมุมก่อน แล้วจึงล็อก');return;}
+  O.plateLock=on;syncLock();if(on&&MV.tool==='plate')setTool('line');
+  mapNote(on?'ล็อกแผ่นแล้ว ใช้ลากเส้นตามมุมได้':'ปลดล็อกแผ่นแล้ว');dirty=true;
+}
+function setBear(v){const az=wrap360(Math.round(Number(v)||0));$('#bearIn').value=az;return az;}
+function drawBearing(az){
+  if(A.phase!=='map')return;
+  if(!O.plate){mapNote('วางแผ่นวัดมุมที่จุดสังเกตก่อน');return;}
+  az=setBear(az);
+  const a={x:O.plate.x,y:O.plate.y},r=az*Math.PI/180,b={x:a.x+Math.sin(r)*BEAR.len,y:a.y+Math.cos(r)*BEAR.len};
+  pushHist();(O.lines||(O.lines=[])).push({a,b,color:'#2a2a2a',bearing:true,az});
+  mapNote('ลากเส้นมุม '+az+'° จากกลางแผ่นแล้ว');
+  markCross(true);dirty=true;
+}
+/* intersection of the two most recent bearing lines that start from different places */
+function crossPoint(){
+  const bl=(O.lines||[]).filter(L=>L.bearing);
+  for(let i=bl.length-1;i>0;i--)for(let j=i-1;j>=0;j--){
+    const p=bl[i],q=bl[j];if(dist(p.a,q.a)<100)continue;
+    const d1x=p.b.x-p.a.x,d1y=p.b.y-p.a.y,d2x=q.b.x-q.a.x,d2y=q.b.y-q.a.y,den=d1x*d2y-d1y*d2x;if(Math.abs(den)<1e-6)continue;
+    const wx=q.a.x-p.a.x,wy=q.a.y-p.a.y,t=(wx*d2y-wy*d2x)/den,u=(wx*d1y-wy*d1x)/den;
+    if(t>=0&&t<=1&&u>=0&&u<=1)return{x:p.a.x+d1x*t,y:p.a.y+d1y*t};}
+  return null;
+}
+function markCross(fromDraw){
+  const p=crossPoint();
+  if(!p){if(!fromDraw)mapNote('ยังไม่มีจุดตัด: ลากเส้นจากจุดสังเกตสองจุดก่อน');return;}
+  if(!fromDraw)pushHist();
+  O.marks=(O.marks||[]).filter(m=>m.fixed||m.label!=='ฉัน');
+  O.marks.push({x:p.x,y:p.y,kind:'x',color:'#7a2fb5',label:'ฉัน'});
+  mapNote('ปักที่อยู่ที่จุดตัดแล้ว ชูนิ้วโป้งหรือกด "ส่งคำตอบ"');dirty=true;
+}
+$('#bearIn').addEventListener('change',e=>setBear(e.target.value));
+$('#bearIn').addEventListener('keydown',e=>{if(e.key==='Enter')drawBearing(Number(e.target.value||0));e.stopPropagation();});
 /* touch / mouse on the map runs the same press-move-release path as the hand cursor */
 let mPtr=null;
 mapC.addEventListener('pointerdown',e=>{try{mapC.setPointerCapture(e.pointerId);}catch(x){}const r=mapC.getBoundingClientRect();mPtr=e.pointerId;mapPress({x:e.clientX-r.left,y:e.clientY-r.top});e.stopPropagation();});
@@ -1275,7 +1339,7 @@ function startResect(){
   const start=wrap360(r.A.az+(A.rng()<.5?-1:1)*(70+A.rng()*80));
   C.heading=start;C.disp=wrap360(start-W.gmDeg);C.vel=0;C.night=false;C.labels=true;C.lum=0;
   O={lines:[],plate:null,marks:[r.A,r.B].map((L,i)=>({x:L.x,y:L.y,kind:'ring',label:(i?'ข ':'ก ')+L.name,fixed:true}))};
-  MV.hist=[];MV.fitted=false;setTool('line');showView('compass');setMode('top');A.phase='aim';
+  MV.hist=[];MV.fitted=false;syncLock();setBear(0);setTool('line');showView('compass');setMode('top');A.phase='aim';
 }
 function toMap(){if(A.ex!=='resect'||A.phase!=='aim')return;A.phase='map';showView('map');renderSheet();}
 function toCompass(){if(A.phase!=='map')return;A.phase='aim';if(A.task.idx>=2){A.task.idx=0;A.task.meas=[null,null];}showView('compass');renderSheet();} // back to re-sight both landmarks, so the old angles are dropped
@@ -1359,7 +1423,7 @@ function renderSheet(){
       ${measNote()}
       <ol class="steps">
         <li>${A.cam?'หันศีรษะหาเป้า เงยศีรษะถ้าเป้าอยู่สูงเกินภาพ หรือกางสองฝ่ามือเข้าหากันเพื่อซูมออก':'ลากภาพหาเป้า ใช้ปุ่มเงย/ซูมออกถ้ามองไม่เห็น'}</li>
-        <li>${A.cam?'ยกขึ้นเล็งให้เส้นเล็งตรงเป้า แล้วชูนิ้วโป้งค้างไว้':'กด "ยกขึ้นเล็ง" แล้วกด "ส่งคำตอบ" เพื่อบันทึกมุม'}</li>
+        <li>${A.cam?'ยกสองมือขึ้นเล็งให้เส้นเล็งตรงเป้า แล้วชูนิ้วโป้งค้างไว้':'กด "ยกขึ้นเล็ง" แล้วกด "ส่งคำตอบ" เพื่อบันทึกมุม'}</li>
         <li>${A.cam?'ชูนิ้วโป้งลง = ลบมุมที่บันทึกล่าสุด · ชู 2 นิ้วค้าง = เปิดแผนที่':'ครบ 2 จุดแล้วแอปจะเปิดแผนที่ให้'}</li>
       </ol>${statusHTML()}`;
   }else if(A.phase==='map'){
@@ -1367,10 +1431,10 @@ function renderSheet(){
       <h2>หาที่อยู่ของคุณจากจุดสังเกต ก และ ข</h2>
       ${measNote()}
       <ol class="steps">
-        <li>เลือก "แผ่นวัดมุม" แล้วหนีบลากให้จุดศูนย์กลางตรงจุดสังเกต (ปล่อยใกล้จุด แผ่นจะดูดเข้าตรงจุด)</li>
-        <li>เลือก "ขีดเส้น" หนีบที่จุดสังเกต ลากไปตามมุมภาคกลับบนขอบแผ่นวัดมุม แล้วปล่อย</li>
-        <li>ทำซ้ำกับอีกจุด เส้นสองเส้นตัดกันตรงที่อยู่ของคุณ</li>
-        <li>เลือก "ปักจุด" แล้วหนีบตรงจุดตัด จากนั้นชูนิ้วโป้งค้างไว้เพื่อส่ง</li>
+        <li>เลือก "แผ่นวัดมุม" แล้วหนีบลากให้จุดศูนย์กลางตรงจุดสังเกต (ปล่อยใกล้จุด แผ่นจะดูดเข้าตรงจุด) แล้วกด "ล็อกแผ่น"</li>
+        <li>คำนวณมุมกลับเอง ตั้งมุมด้วย −10 −1 +1 +10 หรือพิมพ์ แล้วกด "ลากเส้นจากกลางแผ่น" (พูดว่า "ลากเส้น 237 องศา" ก็ได้)</li>
+        <li>ปลดล็อก ย้ายแผ่นไปจุดสังเกตอีกจุด ล็อก แล้วลากเส้นมุมกลับของจุดนั้น</li>
+        <li>จุดตัดของสองเส้นคือที่อยู่ของคุณ แอปปักให้เองเมื่อลากเส้นที่สอง (หรือกด "ปักจุดตัด") แล้วชูนิ้วโป้งค้างไว้เพื่อส่ง</li>
       </ol>
       <p class="muted">${A.cam?'ชี้นิ้ว = เคอร์เซอร์ · ชี้ค้างบนปุ่ม = กด · หนีบ = กด/ลาก · กำมือ = ลากแผนที่ · สองฝ่ามือ = ซูม · โป้งลง = ย้อน':'ลากบนแผนที่ตามเครื่องมือที่เลือก หมุนล้อเมาส์เพื่อซูม หรือเลือก "เลื่อน"'}</p>${statusHTML()}`;
   }else if(A.phase==='aim'){
@@ -1379,7 +1443,7 @@ function renderSheet(){
       <h2>หาทิศไปยัง ${L?esc(L.name):'—'} แล้วส่งมุมภาค</h2>
       <ol class="steps">
         <li id="st1">${A.cam?'หันศีรษะเล็กน้อยค้างไว้ ภาพจะหมุนต่อเองโดยไม่ต้องหันตัวตาม ตามองจอได้ตลอด เป้าอยู่ด้านหลัง: ชี้นิ้วโป้งไปซ้ายหรือขวาค้างไว้ หันทีละ 90°':'ลากภาพหรือกดลูกศรเพื่อหมุนตัวหาเป้า ปุ่ม 90° ใช้หันกลับหลัง'}</li>
-        <li id="st2">${A.cam?'ยกมือขึ้นระดับคาง (ยกขึ้นเล็ง) ให้เส้นเล็งตรงเป้า':'กด "ยกขึ้นเล็ง" แล้วเล็งให้ตรงเป้า'}</li>
+        <li id="st2">${A.cam?'ยกมือทั้งสองข้างขึ้นระดับคาง (ยกขึ้นเล็งแบบถือเข็มทิศสองมือ) ให้เส้นเล็งตรงเป้า':'กด "ยกขึ้นเล็ง" แล้วเล็งให้ตรงเป้า'}</li>
         <li id="st3">${A.cam?'นิ่งไว้จนแถบความนิ่งอยู่ในเกณฑ์':'ปรับละเอียดด้วยลูกศรเดี่ยว'}</li>
         <li id="st4">${A.cam?'ชูนิ้วโป้งค้างไว้เพื่อส่ง':'กด "ส่งคำตอบ"'}</li>
       </ol>${statusHTML()}`;
@@ -1494,7 +1558,8 @@ function updateStatus(now){
   if(A.phase==='map'&&!GS.label){const tn={pan:'เลื่อน',line:'ขีดเส้น',plate:'แผ่นวัดมุม',mark:'ปักจุด',erase:'ยางลบ'}[MV.tool];
     name=MV.zoom?'สองฝ่ามือ (ซูม)':MV.grab?'กำมือ (ลากแผนที่)':MV.press?'หนีบ ('+tn+')':MV.cur?'ชี้ ('+tn+')':'—';}
   if(A.phase==='map'&&!MV.cur&&!MV.grab&&!MV.zoom)hint='ยกมือขึ้นแล้วชี้นิ้ว เคอร์เซอร์จะปรากฏบนแผนที่';
-  if(A.phase==='aim'&&!E.up&&GS.info.some(i=>i.up))hint='ยกขึ้นเล็งก่อน จึงส่งคำตอบได้';
+  if(A.phase==='aim'&&C.mode==='top'&&zoneHands()===1)hint='ยกเข็มทิศด้วยสองมือ: ยกมืออีกข้างขึ้นระดับคางด้วย';
+  else if(A.phase==='aim'&&!E.up&&GS.info.some(i=>i.up))hint='ยกขึ้นเล็งก่อน จึงส่งคำตอบได้';
   if(A.phase==='aim'&&!E.side&&GS.info.some(i=>i.side))hint='หันทีละ 90° ใช้ได้ตอนมองหน้าปัด ลดมือลงก่อน';
   if(A.phase==='check'&&GS.fired&&GS.label==='up')hint='ลดมือลงก่อน แล้วชูนิ้วโป้งอีกครั้งเพื่อส่ง';
   if(!face&&A.phase==='aim')hint='ไม่เห็นใบหน้า: ขยับให้หน้าอยู่ในกรอบ หรือลดมือที่บังหน้า';
@@ -1530,7 +1595,7 @@ function prepWorld(){
   A.ex=$('#exNight').checked?'night':$('#exResect').checked?'resect':'aim';resize();
 }
 async function startCam(){
-  A.cam=true;if(!VOICE.want)startVoice(); // start the microphone inside the click, so the browser lets it ask
+  A.cam=true;if(!VOICE.want&&$('#useVoice').checked)startVoice(); // opt-in: the microphone starts inside the click, so the browser lets it ask
   showScreen('load');$('#loadMsg').textContent='กำลังเปิดกล้องและไมค์ กดอนุญาตเมื่อเบราว์เซอร์ถาม';
   try{if(!T.stream)await startCamera();}catch(e){console.error(e);fail(cameraMsg(e),startCam);return;}
   try{if(!T.face||!T.hand)await loadModels();}catch(e){console.error(e);fail('โหลดตัวตรวจจับใบหน้าและมือไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วกดลองใหม่ (ครั้งแรกต้องโหลดไฟล์ประมาณ 20 MB)',startCam);return;}
@@ -1578,7 +1643,7 @@ $('#pauseHome').addEventListener('click',goHome);
 
 /* ---------- voice commands (Thai): replace the buttons that sat over the view ---------- */
 const TOOLN={pan:'เลื่อน',line:'ขีดเส้น',plate:'แผ่นวัดมุม',mark:'ปักจุด',erase:'ยางลบ'};
-const VOICE={want:false,ok:false,rec:null,done:new Set(),err:'',flashT:0};
+const VOICE={want:false,ok:false,rec:null,done:new Set(),err:'',flashT:0,stopped:false};
 const say=(cmds,f,ok,s)=>({w:cmds,f,ok:ok||(()=>true),s:!!s}); // s = a short word that only counts when said on its own
 const inAim=()=>A.phase==='aim',inMap=()=>A.phase==='map',onCompass=()=>A.view!=='map'&&['aim','set','check','read','result','calib'].includes(A.phase);
 function vConfirm(){
@@ -1611,8 +1676,12 @@ const VCMD=[
   say(['หันซ้าย','เลี้ยวซ้าย','ซ้าย'],()=>{quickTurn(-90);return'หันซ้าย 90°';},()=>inAim()&&C.mode==='top'),
   say(['หันขวา','เลี้ยวขวา','ขวา'],()=>{quickTurn(90);return'หันขวา 90°';},()=>inAim()&&C.mode==='top'),
   say(['กลับเข็มทิศ','เข็มทิศ'],()=>{toCompass();return'กลับไปเข็มทิศ';},inMap),
+  say(['ลากเส้น'],t=>{const m=String(t).replace(/\s+/g,'').match(/(\d{1,3})/);if(!m)return'!บอกมุมด้วย เช่น "ลากเส้น 237 องศา"';drawBearing(+m[1]);return'ลากเส้น '+wrap360(+m[1])+'°';},inMap),
+  say(['ปลดล็อก','ปลดแผ่น'],()=>{plateLock(false);return'ปลดล็อกแผ่น';},inMap),
+  say(['ล็อกแผ่น','ล็อก'],()=>{plateLock(true);return'ล็อกแผ่น';},inMap),
   say(['แผ่นวัดมุม','วัดมุม','ไม้โปรแทรกเตอร์','แผ่น'],()=>{setTool('plate');return'แผ่นวัดมุม';},inMap),
   say(['ขีดเส้น','ดินสอ','เส้น'],()=>{setTool('line');return'ขีดเส้น';},inMap),
+  say(['ปักจุดตัด','จุดตัด'],()=>{markCross(false);return'ปักที่อยู่ที่จุดตัด';},inMap),
   say(['ปักจุด','มาร์ค','ปัก'],()=>{setTool('mark');return'ปักจุด';},inMap),
   say(['ยางลบ','ลบ'],()=>{setTool('erase');return'ยางลบ';},inMap),
   say(['เลื่อนแผนที่','เลื่อน'],()=>{setTool('pan');return'เลื่อนแผนที่';},inMap),
@@ -1621,7 +1690,7 @@ const VCMD=[
   say(['ข้อสาม','สาม','3'],()=>{pickOpt(2);return'ข้อ 3';},()=>A.phase==='read',1),
   say(['ข้อสี่','สี่','4'],()=>{pickOpt(3);return'ข้อ 4';},()=>A.phase==='read',1),
 ];
-const SHORT=new Set(['undo','พัก','หยุด','ขึ้น','ลง','เล็ง','ซ้าย','ขวา','ลบ','ปัก','เส้น','แผ่น','ย่อ','เงย','ก้ม','ขยาย','หนึ่ง','สอง','สาม','สี่','1','2','3','4']);
+const SHORT=new Set(['ล็อก','undo','พัก','หยุด','ขึ้น','ลง','เล็ง','ซ้าย','ขวา','ลบ','ปัก','เส้น','แผ่น','ย่อ','เงย','ก้ม','ขยาย','หนึ่ง','สอง','สาม','สี่','1','2','3','4']);
 function matchSpeech(text){
   const t=text.toLowerCase().replace(/\s+/g,'');if(!t)return null;
   for(const c of VCMD){if(!c.ok())continue;
@@ -1635,29 +1704,33 @@ function handleSpeech(alts,isFinal,idx){
   if(VOICE.done.has(idx))return;
   for(const a of alts){const c=matchSpeech(a);if(!c)continue;
     if(!isFinal&&a.replace(/\s+/g,'').length<2)return;
-    VOICE.done.add(idx);const msg=c.f()||'';
+    VOICE.done.add(idx);const msg=c.f(a)||'';
     if(msg.startsWith('!'))voiceShow('ได้ยิน "'+a.trim()+'" · '+msg.slice(1),'warn');else{voiceShow('ได้ยิน "'+a.trim()+'" → '+msg,'hit');clickSnd();}
     return;}
   if(isFinal&&alts[0])voiceShow('ได้ยิน "'+alts[0].trim()+'" (ไม่ใช่คำสั่ง พูดว่า "คำสั่ง" เพื่อดูรายการ)','warn');
 }
 function voiceShow(text,cls){const t=$('#voiceTag');$('#voiceTxt').textContent=text;t.className='vtag on '+(cls||'');VOICE.flashT=performance.now();}
-function voiceIdle(){const t=$('#voiceTag');if(!VOICE.want){t.className='vtag';$('#voiceTxt').textContent='ไมค์ปิด (กดเพื่อเปิด)';return;}
+function voiceIdle(){const t=$('#voiceTag');if(!VOICE.want){t.className='vtag';$('#voiceTxt').textContent=VOICE.stopped?'ไมค์หยุดแล้ว (กดเพื่อเปิดใหม่)':'ไมค์ปิด (กดเพื่อเปิด)';return;}
   if(!VOICE.ok){t.className='vtag warn';$('#voiceTxt').textContent=VOICE.err?'ใช้คำสั่งเสียงไม่ได้: '+VOICE.err:'กำลังเปิดไมค์';return;}
   t.className='vtag on';$('#voiceTxt').textContent='ฟังอยู่ พูดว่า "คำสั่ง" เพื่อดูรายการ';}
 function startVoice(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;$('#voiceTag').hidden=false;VOICE.want=true;
+  VOICE.stopped=false;
   if(!SR){VOICE.ok=false;VOICE.err='เบราว์เซอร์นี้ไม่รองรับ ใช้ Chrome หรือ Edge';uiMode();voiceIdle();return;}
   if(!VOICE.rec){const r=new SR();r.lang='th-TH';r.continuous=true;r.interimResults=true;r.maxAlternatives=3;
-    r.onstart=()=>{VOICE.ok=true;VOICE.err='';VOICE.done=new Set();uiMode();voiceIdle();};
+    r.onstart=()=>{VOICE.ok=true;VOICE.err='';VOICE.stopped=false;VOICE.done=new Set();uiMode();voiceIdle();};
     r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){const res=e.results[i],alts=[];for(let k=0;k<res.length;k++)alts.push(res[k].transcript);handleSpeech(alts,res.isFinal,i);}};
     r.onerror=e=>{if(e.error==='no-speech'||e.error==='aborted')return;
       VOICE.err=e.error==='not-allowed'||e.error==='service-not-allowed'?'ไม่ได้รับอนุญาตให้ใช้ไมค์':e.error==='network'?'ต้องต่ออินเทอร์เน็ต':e.error==='audio-capture'?'ไม่พบไมค์':e.error;
       if(e.error!=='network'){VOICE.ok=false;if(e.error==='not-allowed'||e.error==='service-not-allowed')VOICE.want=false;}uiMode();voiceIdle();};
-    r.onend=()=>{VOICE.ok=false;uiMode();if(VOICE.want)setTimeout(()=>{if(VOICE.want)try{r.start();}catch(x){}},300);else voiceIdle();};
+    r.onend=()=>{VOICE.ok=false;uiMode();
+      // a file opened from disk makes the browser ask for the microphone on every start(), so do not restart by itself there
+      if(VOICE.want&&location.protocol==='file:'){VOICE.want=false;VOICE.stopped=true;voiceIdle();}
+      else if(VOICE.want)setTimeout(()=>{if(VOICE.want)try{r.start();}catch(x){}},300);else voiceIdle();};
     VOICE.rec=r;}
   try{VOICE.rec.start();}catch(x){}voiceIdle();
 }
-function stopVoice(){VOICE.want=false;VOICE.ok=false;try{VOICE.rec&&VOICE.rec.stop();}catch(x){}uiMode();voiceIdle();}
+function stopVoice(){VOICE.want=false;VOICE.ok=false;VOICE.stopped=false;try{VOICE.rec&&VOICE.rec.stop();}catch(x){}uiMode();voiceIdle();}
 $('#voiceTag').addEventListener('click',()=>{VOICE.want?stopVoice():startVoice();});
 /* hide the on-screen controls whenever the camera and the microphone are both working */
 function uiMode(){document.body.classList.toggle('voiceui',A.cam&&VOICE.ok&&!SET.buttons);}
@@ -1665,7 +1738,7 @@ function voiceHelp(){
   if(!VOICE.want)return'';
   const rows=[['ยกขึ้น / เข็มทิศขึ้น','ยกขึ้นเล็ง'],['ลดลง / เข็มทิศลง','มองหน้าปัด'],['ส่งคำตอบ / ส่งมุม / บันทึกมุม','ส่งคำตอบ (ต้องพูดครบวลี ไม่ใช่แค่ "ส่ง" หรือ "โอเค")'],['รอบถัดไป / ฝึกต่อ','ไปรอบต่อไป หรือกลับมาฝึกหลังพัก'],['ย้อนกลับ','ย้อน 1 ขั้น'],
     ['หันซ้าย / หันขวา / กลับหลัง','หัน 90° หรือ 180°'],['มองสูง / มองต่ำ','เงยหรือก้มภาพ'],['ซูมเข้า / ซูมออก / ตั้งต้น','มุมกว้างของภาพหรือแผนที่'],
-    ['แผนที่ / เข็มทิศ','สลับมุมมอง'],['ขีดเส้น / แผ่นวัดมุม / ปักจุด / ยางลบ / เลื่อน','เลือกเครื่องมือบนแผนที่'],['หนึ่ง สอง สาม สี่','เลือกคำตอบ'],['หยุด / ฝึกต่อ','พักและฝึกต่อ']];
+    ['แผนที่ / เข็มทิศ','สลับมุมมอง'],['ขีดเส้น / แผ่นวัดมุม / ปักจุด / ยางลบ / เลื่อน','เลือกเครื่องมือบนแผนที่'],['ลากเส้น 237 องศา','ลากเส้นจากกลางแผ่นวัดมุมตามมุมที่บอก (พูดเป็นตัวเลข)'],['ล็อกแผ่น / ปลดล็อก','ล็อกหรือปลดล็อกแผ่นวัดมุม'],['จุดตัด','ปักที่อยู่ที่จุดตัดของสองเส้น'],['หนึ่ง สอง สาม สี่','เลือกคำตอบ'],['หยุด / ฝึกต่อ','พักและฝึกต่อ']];
   return`<details class="vhelp" id="vhelp" ${VOICE.helpOpen?'open':''}><summary>คำสั่งเสียง (พูดว่า "คำสั่ง" เพื่อเปิด/ปิดรายการนี้)</summary><div class="vgrid">${rows.map(r=>`<b>${r[0]}</b><span>${r[1]}</span>`).join('')}</div></details>`;
 }
 
@@ -1696,8 +1769,10 @@ function loop(now){
 buildSettings();
 genWorld('ALPHA-01');A.rng=mulberry32(hashStr('ALPHA-01|boot'));
 {const s=genSpot();C.heading=s.vis.length?s.vis[0].az:0;C.disp=C.heading;C.labels=true;setMode('top');}
-if(location.hash==='#selftest')window.__gc={handleSpeech,matchSpeech,A,C,MV,PV,GS}; // test hook: lets a script feed spoken phrases
-setPV(50,0);resize();requestAnimationFrame(loop);
+if(location.hash==='#selftest')window.__gc={handleSpeech,matchSpeech,A,C,MV,PV,GS,getO:()=>O,setO:o=>{O=o;},drawBearing,plateLock,markCross,crossPoint,setTool,mapPress,gridAz,wrap360,recordResect,zoneHands}; // test hook: lets a script feed spoken phrases
+try{$('#useVoice').checked=localStorage.getItem('gesture-compass-voice')==='1';}catch(e){}
+$('#useVoice').addEventListener('change',e=>{try{localStorage.setItem('gesture-compass-voice',e.target.checked?'1':'0');}catch(x){}});
+voiceIdle();setPV(50,0);resize();requestAnimationFrame(loop);
 })();
 </script>
 </body>
