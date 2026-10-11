@@ -180,6 +180,7 @@ function runNight(S,L){const sp=standPoint(1);C.heading=rnd(0,360);C.disp=magHea
 
 /* ---------- navigation engine (L8 patrol & Score-O) ---------- */
 function runNav(cfg){
+  const RF=cfg.mode==='scoreo'?SOFIND:TOL.find; // search radius for this run
   const sp=cfg.start;const N={stride:1+gauss()*0.03,tp:{...sp},pp:{...sp},found:new Set(),trueTrack:[{...sp}],plan:[[{...sp}]],pins:[],rays:[],searches:[],time:0,counted:0,actual:0,log:[],pinMode:false,done:false,endArm:false};
   const tg=cfg.targets;
   const pointsNow=()=>[...N.found].reduce((a,k)=>a+tg[k].pts,0);
@@ -223,13 +224,13 @@ function runNav(cfg){
     const pc=Math.round(cnt*1.4);const aim=aimOf(N.pp,wrap360(az),cnt);if(aim)N.legs.push({from:{...N.tp},pp:{...N.pp},az:wrap360(az),paces:pc,cnt,end:{x,y},tgt:{x:aim.x,y:aim.y},label:aim.label});N.trueTrack.push({x,y});N.tp={x,y};N.counted+=pc;N.actual+=act;const pa=(wrap360(az)+W.gmDeg)*Math.PI/180;N.pp={x:N.pp.x+Math.sin(pa)*cnt,y:N.pp.y+Math.cos(pa)*cnt};N.plan[N.plan.length-1].push({...N.pp});
     N.log.push(`เดิน ${fd(az)}° นับได้ ${pc} ก้าว${wet?' (ลุยข้ามน้ำ)':''}${stop?' — '+stop:''}`);if(stop)sfx('bad');ui(stop?`<b>${stop}</b> หลังนับได้ ${pc} ก้าว`:`เดินครบ ${pc} ก้าว${wet?' · ลุยข้ามน้ำระหว่างทาง':''}`);}
   function find(){N.endArm=false;N.time+=cfg.mode==='scoreo'?3:5;let hit=-1;
-    if(cfg.mode==='patrol'){const k=nextIdx();if(k>=0&&dist(N.tp,tg[k])<=TOL.find)hit=k;}else{let bd=TOL.find+1;tg.forEach((c,k)=>{if(N.found.has(k))return;const d=dist(N.tp,c);if(d<bd){bd=d;hit=k;}});}
+    if(cfg.mode==='patrol'){const k=nextIdx();if(k>=0&&dist(N.tp,tg[k])<=RF)hit=k;}else{let bd=RF+1;tg.forEach((c,k)=>{if(N.found.has(k))return;const d=dist(N.tp,c);if(d<bd){bd=d;hit=k;}});}
     N.searches.push({x:N.tp.x,y:N.tp.y,ok:hit>=0});
     if(hit>=0){N.fails=0;N.found.add(hit);const c=tg[hit];N.pp={...c};N.plan.push([{...c}]);N.log.push(`พบ ${c.label}`);flash(true);
       if(cfg.mode==='patrol'&&N.found.size===tg.length)return finish(true);ui(`<b>พบ ${esc(c.label)}!</b>${cfg.mode==='scoreo'?' +'+c.pts+' คะแนน':''} ตำแหน่งของคุณคือ ${gridRef(c.x,c.y,8)}`);}
     else{flash(false);N.fails++;N.log.push('ค้นหาไม่พบ');let c=null;if(cfg.mode==='patrol'){const k=nextIdx();c=k>=0?tg[k]:null;}else{let bd=1e9;tg.forEach((t,k)=>{if(N.found.has(k))return;const d=dist(N.tp,t);if(d<bd){bd=d;c=t;}});}
-      ui(`ไม่พบ${cfg.mode==='scoreo'?'ธง':'จุดตรวจ'}ในรัศมี ${TOL.find} ม.${c?' · '+(cfg.mode==='scoreo'?'ธงที่ใกล้ที่สุด: ':'')+searchHelp(dist(N.tp,c),gridAz(N.tp,c),N.fails):''}`);}}
-  function endPress(){if(cfg.mode==='patrol')return finish(false);const atFinish=dist(N.tp,sp)<=TOL.find;if(atFinish)return finish(true);if(!N.endArm){N.endArm=true;return ui(`คุณยังไม่อยู่ที่เส้นชัย (ห่างเกิน ${TOL.find} ม.) จบตอนนี้คะแนนจะถูกหักครึ่ง · เส้นชัย${navBand(dist(N.tp,sp))} ไปทาง${dir8(gridAz(N.tp,sp))}`);}finish(false);}
+      ui(`ไม่พบ${cfg.mode==='scoreo'?'ธง':'จุดตรวจ'}ในรัศมี ${RF} ม.${c?' · '+(cfg.mode==='scoreo'?'ธงที่ใกล้ที่สุด: ':'')+searchHelp(dist(N.tp,c),gridAz(N.tp,c),N.fails):''}`);}}
+  function endPress(){if(cfg.mode==='patrol')return finish(false);const atFinish=dist(N.tp,sp)<=RF;if(atFinish)return finish(true);if(!N.endArm){N.endArm=true;return ui(`คุณยังไม่อยู่ที่เส้นชัย (ห่างเกิน ${TOL.find} ม.) จบตอนนี้คะแนนจะถูกหักครึ่ง · เส้นชัย${navBand(dist(N.tp,sp))} ไปทาง${dir8(gridAz(N.tp,sp))}`);}finish(false);}
   function finish(ok){N.done=true;tapHandler=null;setStageView('map',false);
     const marks=[{x:sp.x,y:sp.y,kind:'sp',label:cfg.mode==='scoreo'?'เส้นชัย':'SP'}];tg.forEach((c,k)=>marks.push({x:c.x,y:c.y,kind:'cp',label:c.label,color:N.found.has(k)?'#1f8a3a':'#d6261c'}));
     N.searches.forEach(s=>marks.push({x:s.x,y:s.y,kind:'x',color:s.ok?'#1f8a3a':'#d6261c'}));
@@ -268,6 +269,7 @@ function showCampaign(){stopTimer();O={};tapHandler=null;setStageView('map',fals
     <p class="muted" style="font-size:13px;margin-top:12px">ได้ 60 คะแนน = ★ ผ่าน · 80 = ★★ · 95 = ★★★ · ผ่านแล้วปลดล็อกภารกิจถัดไปและเลื่อนยศ</p><div class="row"><button class="btn" id="tosend">ส่งคะแนนให้ครูฝึก</button></div>`);on('tosend',()=>setTab('lb'));
   sheet.querySelectorAll('.lv').forEach(b=>b.onclick=()=>startLevel(+b.dataset.i));}
 const SOLIM=CFG.short?45:90;
+const SOFIND=150; // Score-O: a flag counts as found within this radius (m); keep between 100 and 200
 function makeFlags(sp){const r=mulberry32(hashStr(GS.code+'#scoreo'));const fl=[];let guard=0;
   while(fl.length<(CFG.short?6:10)&&guard++<2000){const x=500+r()*(MAP-1000),y=500+r()*(MAP-1000),p={x,y};if(!landOK(x,y))continue;const d=dist(p,sp);if(d<400||d>(CFG.short?2400:3600))continue;if(fl.some(f=>dist(f,p)<450))continue;
     let pts=d<1500?10:d<2500?20:30;if(W.isForest(x,y))pts+=10;fl.push({x,y,pts});}
@@ -277,7 +279,7 @@ function showScoreO(){stopTimer();O={};tapHandler=null;setStageView('map',false)
   O={marks:[{x:sp.x,y:sp.y,kind:'sp',label:'เริ่ม/เส้นชัย'}]};setView(sp.x,sp.y,0.08);
   setSheet(`<div class="eyebrow">โหมดแข่งขัน · รหัส ${esc(GS.code)}</div><h2>Score-O ล่าธง</h2>
     <p>ธง ${fl.length} ผืนซ่อนอยู่ในพื้นที่ แต่ละผืนมีแต้ม 10-40 ตามความไกลและความยาก มีเวลา <b>${SOLIM} นาที</b> (เวลาในเกม) เลือกเก็บธงลำดับไหนก็ได้แล้วกลับเส้นชัย</p>
-    <ul style="padding-left:20px;font-size:14px;margin:6px 0"><li>เกินเวลา หักนาทีละ 2 คะแนน</li><li>ค้นหาผิดที่เสียเวลา 3 นาที</li><li>จบนอกเส้นชัย คะแนนหักครึ่ง</li><li>ทุกคนที่ใช้รหัสเดียวกันได้ธงชุดเดียวกัน แข่งกันบนตารางอันดับ</li></ul>
+    <ul style="padding-left:20px;font-size:14px;margin:6px 0"><li>พบธงเมื่ออยู่ห่างจากธงไม่เกิน ${SOFIND} ม. (กด "ค้นหาธง")</li><li>เกินเวลา หักนาทีละ 2 คะแนน</li><li>ค้นหาผิดที่เสียเวลา 3 นาที</li><li>จบนอกเส้นชัย คะแนนหักครึ่ง</li><li>ทุกคนที่ใช้รหัสเดียวกันได้ธงชุดเดียวกัน แข่งกันบนตารางอันดับ</li></ul>
     <p class="mono">สถิติของคุณ: ${best?best.pts+' คะแนน · '+best.time+' นาที':'ยังไม่มี'}</p>
     <div class="row"><button class="btn primary" id="go">เริ่มแข่ง</button></div>`);
   on('go',()=>runNav({title:'Score-O · '+GS.code,mode:'scoreo',start:sp,targets:fl,limit:SOLIM,onEnd:r=>{
@@ -286,7 +288,7 @@ function showScoreO(){stopTimer();O={};tapHandler=null;setStageView('map',false)
     setSheet(`<div class="result"><div class="eyebrow">Score-O · ${esc(GS.code)}</div><div class="score mono">${pts}<span class="muted" style="font-size:18px"> คะแนน</span></div>
       <p>ธง ${r.found}/${fl.length} · เวลา ${t} นาที ${r.ok?'· เข้าเส้นชัย':'· <span style="color:var(--bad)">ไม่เข้าเส้นชัย (หักครึ่ง)</span>'}</p>
       ${better?'<div class="promo">สถิติใหม่ของคุณ!</div>':''}
-      <p class="muted" style="font-size:13.5px">เส้นแดง = ทางที่เดินจริง · เส้นประ = ทางที่คิดว่าเดิน · ✕ = จุดค้นหา (พบเมื่ออยู่ห่างไม่เกิน ${TOL.find} ม.)</p><div style="text-align:left">${r.review}</div>
+      <p class="muted" style="font-size:13.5px">เส้นแดง = ทางที่เดินจริง · เส้นประ = ทางที่คิดว่าเดิน · ✕ = จุดค้นหา (พบเมื่ออยู่ห่างไม่เกิน ${SOFIND} ม.)</p><div style="text-align:left">${r.review}</div>
       <div class="row" style="justify-content:center"><button class="btn primary" id="again">แข่งอีกครั้ง</button><button class="btn" id="lb">ดูตารางอันดับ</button></div></div>`);
     on('again',showScoreO);on('lb',()=>setTab('lb'));}}));}
 
