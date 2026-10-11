@@ -73,8 +73,8 @@ MOD.m1={start(){
 /* ---------- module 2: MGRS and geographic coordinates ---------- */
 MOD.m2={start(){
   const R2=takeRetry('m2');const qs=R2?R2.kinds.map(k=>({kind:k.kind,d:k.d})):[],NQ=R2?[0,0,0,0]:CFG.short?[2,1,1,1]:[3,2,2,3];for(let i=0;i<NQ[0];i++)qs.push({kind:'read',d:6});for(let i=0;i<NQ[1];i++)qs.push({kind:'read',d:8});for(let i=0;i<NQ[2];i++)qs.push({kind:'plot',d:6});for(let i=0;i<NQ[3];i++)qs.push({kind:'geo'});
-  qs.forEach(q=>{for(let k=0;k<100;k++){let x,y;if(q.d===6){x=100*Math.floor(rnd(3,77))+rnd(30,70);y=100*Math.floor(rnd(3,77))+rnd(30,70);}else if(q.d===8){x=10*Math.floor(rnd(30,770))+rnd(3,7);y=10*Math.floor(rnd(30,770))+rnd(3,7);}
-    else{x=rnd(500,7300);y=rnd(500,7300);}if(!W.isWater(x,y)){q.p={x,y};break;}}if(!q.p)q.p={x:4050,y:4050};});
+  qs.forEach(q=>{for(let k=0;k<100;k++){let x,y;if(q.d===6){x=100*Math.floor(rnd(3,MAP/100-3))+rnd(30,70);y=100*Math.floor(rnd(3,MAP/100-3))+rnd(30,70);}else if(q.d===8){x=10*Math.floor(rnd(30,MAP/10-30))+rnd(3,7);y=10*Math.floor(rnd(30,MAP/10-30))+rnd(3,7);}
+    else{x=rnd(500,MAP-700);y=rnd(500,MAP-700);}if(!W.isWater(x,y)){q.p={x,y};break;}}if(!q.p)q.p={x:MAP/2+50,y:MAP/2+50};});
   const st=PROG.st({i:0,score:0,wrong:[]});const W2=q=>st.wrong.push({kind:q.kind,d:q.d});const show=()=>{PROG.save();
     if(st.i>=qs.length)return finishCard('โมดูล 2 · อ่านพิกัด',st.score,qs.length,PASSAT(qs.length,8),'m2','',st.wrong);
     const q=qs[st.i];tapHandler=null;const head=`<div class="eyebrow">โมดูล 2 · ข้อ ${st.i+1}/${qs.length}</div>${progress(st.i,qs.length)}`;
@@ -182,7 +182,7 @@ MOD.m4={start(){
 /* ---------- module 5: navigation exercise with pace count ---------- */
 function paceStd(){try{return Number(localStorage.getItem('lnav-pace'))||140;}catch(e){return 140;}}
 MOD.m5={start(){
-  let sp=null;for(let i=0;i<60&&!sp;i++){const p=randLand(900);if(W.roadDist(p.x,p.y)<60)sp=p;}sp=sp||randLand(900);
+  let sp=null;for(let i=0;i<400&&!sp;i++){const p=randLand(900);if(W.roadDist(p.x,p.y)<60)sp=p;}sp=sp||randLand(900);
   const R5=takeRetry('m5');RETRY=null;const cps=[];let prev=sp;for(let k=0;k<(R5?R5.kinds.length:CFG.short?2:3);k++){let c=null;for(let i=0;i<300;i++){const a=rnd(0,2*Math.PI),d=rnd(800,1400),p={x:prev.x+Math.sin(a)*d,y:prev.y+Math.cos(a)*d};if(landOK(p.x,p.y)&&p.x>500&&p.y>500&&p.x<MAP-500&&p.y<MAP-500&&dist(p,sp)>600){c=p;break;}}c=c||randLand(600);cps.push(c);prev=c;}
   const trueStride=1+gauss()*0.03;
   const N={tp:{...sp},pp:{...sp},cps,found:0,trueTrack:[{...sp}],plan:[[{...sp}]],pins:[],rays:[],searches:[],time:0,paces:0,actual:0,log:[],pinMode:false,done:false};

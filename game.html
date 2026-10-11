@@ -206,7 +206,7 @@ tr.me td{background:var(--accent-soft)}
 const CFG={short:false,web:true,form:{url:'',e:{}}};
 /* ================= SHARED CORE: world, map, tools, lensatic compass ================= */
 /* ---------- constants & helpers ---------- */
-const MAP=8000, E0=40000, N0=20000, ZONE='47P PS', MPD=6400/360;
+const MAP=20000, SC=MAP/8000, E0=40000, N0=20000, ZONE='47P PS', MPD=6400/360;
 const FOVS=[30,45,60,90];let FOVI=(typeof window!=='undefined'&&window.innerWidth<700)?2:1,FOV=FOVS[FOVI];
 const LAT0=14+15/60, LON0=99+30/60, M_LAT=110600, M_LON=107870; // SW corner of the sheet, metres per degree
 const $=s=>document.querySelector(s);
@@ -251,11 +251,11 @@ let W=null;
 function genWorld(code){
   const r=mulberry32(hashStr(code));
   const noise=makeNoise(r), noise2=makeNoise(r);
-  const hills=[];const nh=11+((r()*5)|0);
-  for(let i=0;i<nh;i++){const big=i<4;const k={x:-600+r()*9200,y:-600+r()*9200,a:big?200+r()*230:70+r()*170,sx:big?700+r()*900:300+r()*500,th:r()*Math.PI};k.sy=k.sx*(0.35+r()*0.65);hills.push(k);}
-  const rv={x0:2200+r()*3600,a1:350+r()*450,p1:r()*6.28,a2:120+r()*160,p2:r()*6.28};
+  const hills=[];const nh=Math.round((11+((r()*5)|0))*SC*SC),nBig=Math.round(4*SC*SC);
+  for(let i=0;i<nh;i++){const big=i<nBig;const k={x:-600+r()*(MAP+1200),y:-600+r()*(MAP+1200),a:big?200+r()*230:70+r()*170,sx:big?700+r()*900:300+r()*500,th:r()*Math.PI};k.sy=k.sx*(0.35+r()*0.65);k.c=Math.cos(k.th);k.s=Math.sin(k.th);k.R2=24*k.sx*k.sx;hills.push(k);}
+  const rv={x0:SC*2200+r()*SC*3600,a1:350+r()*450,p1:r()*6.28,a2:120+r()*160,p2:r()*6.28};
   const riverX=y=>rv.x0+rv.a1*Math.sin(y/1500+rv.p1)+rv.a2*Math.sin(y/530+rv.p2);
-  function rawElev(x,y){let h=70;for(const k of hills){const dx=x-k.x,dy=y-k.y,c=Math.cos(k.th),s=Math.sin(k.th),u=dx*c+dy*s,v=-dx*s+dy*c;
+  function rawElev(x,y){let h=70;for(const k of hills){const dx=x-k.x,dy=y-k.y;if(dx*dx+dy*dy>k.R2)continue;const c=k.c,s=k.s,u=dx*c+dy*s,v=-dx*s+dy*c;
       h+=k.a*Math.exp(-(u*u/(2*k.sx*k.sx)+v*v/(2*k.sy*k.sy)));}
     return h+90*noise(x/1100,y/1100)+25*noise(x/350+40,y/350+40);}
   /* cliff: a steep scarp on the flank of a big hill */
@@ -266,11 +266,11 @@ function genWorld(code){
     return cliff.H/(1+Math.exp(-v/18))*Math.exp(-((u/cliff.L)**4))*Math.exp(-((Math.max(0,v)/650)**2));};
   /* depression (sink) */
   let crater=null;
-  for(let t=0;t<200&&!crater;t++){const x=900+r()*6200,y=900+r()*6200;const h=rawElev(x,y);if(h<170||Math.abs(x-riverX(y))<900)continue;
+  for(let t=0;t<200&&!crater;t++){const x=900+r()*(MAP-1800),y=900+r()*(MAP-1800);const h=rawElev(x,y);if(h<170||Math.abs(x-riverX(y))<900)continue;
     if(cliff&&hyp(x-cliff.x,y-cliff.y)<1000)continue;const g=hyp(rawElev(x+50,y)-rawElev(x-50,y),rawElev(x,y+50)-rawElev(x,y-50))/100;if(g>0.06)continue;crater={x,y,d:40,s:115};}
-  function elevFn(x,y,noCrater){let h=rawElev(x,y)+cliffTerm(x,y);const d=Math.abs(x-riverX(y)),bed=62+y*0.006,s=1-Math.exp(-(d*d)/(650*650));h=bed+Math.max(0,h-bed)*s+d*0.004;
+  function elevFn(x,y,noCrater){let h=rawElev(x,y)+cliffTerm(x,y);const d=Math.abs(x-riverX(y)),bed=62+y*0.006/SC,s=1-Math.exp(-(d*d)/(650*650));h=bed+Math.max(0,h-bed)*s+d*0.004;
     if(crater&&!noCrater){const q=((x-crater.x)**2+(y-crater.y)**2)/(2*crater.s*crater.s);if(q<12)h-=crater.d*Math.exp(-q);}return h;}
-  const N=321,STEP=25,G=new Float32Array(N*N);
+  const STEP=40,N=MAP/STEP+1,G=new Float32Array(N*N);
   for(let j=0;j<N;j++)for(let i=0;i<N;i++)G[j*N+i]=elevFn(i*STEP,j*STEP);
   function elev(x,y){if(x<0||y<0||x>MAP||y>MAP)return elevFn(x,y);
     const fx=x/STEP,fy=y/STEP,i=Math.min(N-2,Math.floor(fx)),j=Math.min(N-2,Math.floor(fy)),tx=fx-i,ty=fy-j;
@@ -278,7 +278,7 @@ function genWorld(code){
   const grad=(x,y)=>({x:(elev(x+25,y)-elev(x-25,y))/50,y:(elev(x,y+25)-elev(x,y-25))/50});
   const craterBase=crater?elevFn(crater.x,crater.y,true):0;
   /* contours: index 100 m, intermediate 20 m, supplementary 10 m (flat ground), depression ticks */
-  const NT=8,minor=[],index=[],supp=[];for(let t=0;t<NT*NT;t++){minor.push(new Path2D());index.push(new Path2D());supp.push(new Path2D());}
+  const NT=MAP/1000,minor=[],index=[],supp=[];for(let t=0;t<NT*NT;t++){minor.push(new Path2D());index.push(new Path2D());supp.push(new Path2D());}
   const dep=new Path2D();const lab=[],CI=20;const samp={index:[],minor:[],supp:[],dep:[]};
   for(let j=0;j<N-1;j++)for(let i=0;i<N-1;i++){
     const a=G[j*N+i],b=G[j*N+i+1],c=G[(j+1)*N+i+1],d=G[(j+1)*N+i];
@@ -306,22 +306,22 @@ function genWorld(code){
   const labels=[];for(const l of lab){if(l.x<150||l.y<150||l.x>MAP-150||l.y>MAP-150)continue;if(labels.every(o=>hyp(o.x-l.x,o.y-l.y)>800))labels.push(l);}
   /* water */
   const river=new Path2D();for(let y=-300;y<=MAP+300;y+=20){const x=riverX(y);y===-300?river.moveTo(x,y):river.lineTo(x,y);}
-  const sy=1400+r()*5200,side=r()<.5?-1:1;
+  const sy=SC*1400+r()*SC*5200,side=r()<.5?-1:1;
   const swamp={x:riverX(sy)+side*(400+r()*160),y:sy,a:230+r()*130,b:160+r()*80};
   const inSwamp=(x,y)=>((x-swamp.x)/swamp.a)**2+((y-swamp.y)/swamp.b)**2<1;
   /* streams follow the terrain downhill into the river */
   const streams=[];
-  for(let k=0;k<60&&streams.length<5;k++){let x=600+r()*6800,y=600+r()*6800;if(elev(x,y)<150)continue;if(crater&&hyp(x-crater.x,y-crater.y)<600)continue;
+  for(let k=0;k<300&&streams.length<Math.round(5*SC*SC);k++){let x=600+r()*(MAP-1200),y=600+r()*(MAP-1200);if(elev(x,y)<150)continue;if(crater&&hyp(x-crater.x,y-crater.y)<600)continue;
     const pts=[[x,y]];let ok=false;
-    for(let s=0;s<700;s++){const g=grad(x,y),m=hyp(g.x,g.y);if(m<0.004)break;x-=g.x/m*20;y-=g.y/m*20;pts.push([x,y]);
+    for(let s=0;s<1500;s++){const g=grad(x,y),m=hyp(g.x,g.y);if(m<0.004)break;x-=g.x/m*20;y-=g.y/m*20;pts.push([x,y]);
       if(Math.abs(x-riverX(y))<16||inSwamp(x,y)){ok=true;break;}if(x<0||y<0||x>MAP||y>MAP){ok=true;break;}}
     if(!ok||pts.length<45)continue;
     if(streams.some(st=>st.some(p=>hyp(p[0]-pts[0][0],p[1]-pts[0][1])<500||hyp(p[0]-pts[pts.length>>1][0],p[1]-pts[pts.length>>1][1])<300)))continue;
     streams.push(pts.slice(8));}
   /* roads: two main roads and one secondary road */
-  const rp=[r()*6.28,r()*6.28,r()*6.28],y1=2300+r()*3400;
+  const rp=[r()*6.28,r()*6.28,r()*6.28],y1=SC*2300+r()*SC*3400;
   const road1=[];for(let x=-300;x<=MAP+300;x+=20)road1.push([x,y1+520*Math.sin(x/1800+rp[0])+170*Math.sin(x/620+rp[1])]);
-  const x2=rv.x0>4000?800+r()*1300:5900+r()*1300;
+  const x2=rv.x0>MAP/2?SC*800+r()*SC*1300:SC*5900+r()*SC*1300;
   const road2=[];for(let y=-300;y<=MAP+300;y+=20)road2.push([x2+300*Math.sin(y/1400+rp[2])+90*Math.sin(y/450+rp[0]),y]);
   const roads=[road1,road2];
   const toPath=pts=>{const p=new Path2D();pts.forEach((q,i)=>i?p.lineTo(q[0],q[1]):p.moveTo(q[0],q[1]));return p;};
@@ -329,14 +329,14 @@ function genWorld(code){
   /* villages */
   const NAMES=['บ้านหนองบัว','บ้านโคกสูง','บ้านนาดี','บ้านห้วยทราย','บ้านดงเย็น','บ้านป่าหวาย','บ้านหนองแวง','บ้านโนนสะอาด','บ้านลำพญา'];
   for(let i=NAMES.length-1;i>0;i--){const j=(r()*(i+1))|0;[NAMES[i],NAMES[j]]=[NAMES[j],NAMES[i]];}
-  const villages=[];const vxs=[700+r()*1200,3100+r()*1300,5700+r()*1300];
+  const villages=[];const vxs=[0,1,2,3,4,5].map(i=>MAP*(0.03+i*0.155)+r()*MAP*0.09);
   for(let k=0;k<vxs.length;k++){let vx=vxs[k],p=null;for(let tries=0;tries<8;tries++){const q=roadPointAt(road1,0,vx);if(Math.abs(q[0]-riverX(q[1]))>260&&!inSwamp(q[0],q[1])&&q[1]>300&&q[1]<MAP-300){p=q;break;}vx+=350;}
     if(p)villages.push({x:p[0],y:p[1],name:NAMES[villages.length]});}
-  {let vy=1200+r()*2000;if(Math.abs(vy-y1)<1500)vy=Math.min(MAP-600,vy+2600);const q=roadPointAt(road2,1,vy);
+  {let vy=SC*1200+r()*SC*2000;if(Math.abs(vy-y1)<1500)vy=Math.min(MAP-600,vy+SC*2600);const q=roadPointAt(road2,1,vy);
    if(q[0]>300&&q[0]<MAP-300&&Math.abs(q[0]-riverX(q[1]))>260&&villages.every(v=>hyp(v.x-q[0],v.y-q[1])>1200))villages.push({x:q[0],y:q[1],name:NAMES[villages.length]});}
   /* secondary road from a village to a hamlet */
   let road3=[];{const v=villages[1]||villages[0];if(v){let ang=(r()<.5?0:Math.PI)+(r()-.5)*0.6,x=v.x,y=v.y;road3.push([x,y]);
-    for(let s=0;s<120;s++){ang+=(r()-.5)*0.18;x+=Math.sin(ang)*20;y+=Math.cos(ang)*20;if(x<200||y<200||x>MAP-200||y>MAP-200)break;road3.push([x,y]);}
+    for(let s=0;s<300;s++){ang+=(r()-.5)*0.18;x+=Math.sin(ang)*20;y+=Math.cos(ang)*20;if(x<200||y<200||x>MAP-200||y>MAP-200)break;road3.push([x,y]);}
     const e=road3[road3.length-1];if(road3.length>60&&!inSwamp(e[0],e[1])&&Math.abs(e[0]-riverX(e[1]))>200)villages.push({x:e[0],y:e[1],name:NAMES[villages.length],small:true});}}
   const allRoads=[road1,road2,road3];
   const bridges=[];
@@ -352,13 +352,13 @@ function genWorld(code){
   const temple=villages[0]?{x:villages[0].x+130,y:villages[0].y+150}:{x:1000,y:1000};
   const school=villages[1]?{x:villages[1].x-150,y:villages[1].y-140}:{x:2000,y:2000};
   const hospital=villages[2]?{x:villages[2].x+160,y:villages[2].y-130}:null;
-  const ponds=[];for(const v of villages.slice(0,3)){const p={x:v.x-200+r()*60,y:v.y+170};if(!isWater(p.x,p.y))ponds.push(p);}
+  const ponds=[];for(const v of villages.slice(0,6)){const p={x:v.x-200+r()*60,y:v.y+170};if(!isWater(p.x,p.y))ponds.push(p);}
   /* peaks */
   const cand=[];for(let j=3;j<N-3;j+=4)for(let i=3;i<N-3;i+=4){const h=G[j*N+i];let mx=true;
     for(let dj=-12;dj<=12&&mx;dj+=4)for(let di=-12;di<=12;di+=4){const jj=j+dj,ii=i+di;if(jj<0||ii<0||jj>=N||ii>=N||(!di&&!dj))continue;if(G[jj*N+ii]>h){mx=false;break;}}
     if(mx)cand.push({x:i*STEP,y:j*STEP,h});}
   cand.sort((a,b)=>b.h-a.h);
-  const peaks=[];for(const c of cand){if(c.x<250||c.y<250||c.x>MAP-250||c.y>MAP-250)continue;if(c.h<140)continue;if(peaks.every(p=>dist(p,c)>900))peaks.push(c);if(peaks.length>=7)break;}
+  const peaks=[];for(const c of cand){if(c.x<250||c.y<250||c.x>MAP-250||c.y>MAP-250)continue;if(c.h<140)continue;if(peaks.every(p=>dist(p,c)>1100))peaks.push(c);if(peaks.length>=14)break;}
   /* terrain features for questions: ridge, saddle, valley */
   const saddles=[];for(let a=0;a<peaks.length;a++)for(let b=a+1;b<peaks.length;b++){const A=peaks[a],B=peaks[b],d=dist(A,B);if(d>2600)continue;
     let mn=1e9,mp=null;for(let s=0.15;s<=0.85;s+=0.025){const x=A.x+(B.x-A.x)*s,y=A.y+(B.y-A.y)*s,h=elev(x,y);if(h<mn){mn=h;mp={x,y};}}
@@ -374,14 +374,14 @@ function genWorld(code){
   towers.forEach(t=>landmarks.push({x:t.x,y:t.y,top:elev(t.x,t.y)+48,name:t.name,kind:'tower'}));
   if(villages[0])landmarks.push({x:temple.x,y:temple.y,top:elev(temple.x,temple.y)+24,name:'วัด'+villages[0].name.replace('บ้าน',''),kind:'temple'});
   /* vegetation raster: 1 forest, 2 orchard, 3 rice paddy */
-  const FR=200,veg=new Uint8Array(FR*FR),fc=document.createElement('canvas');fc.width=fc.height=FR;
+  const FR=MAP/40,veg=new Uint8Array(FR*FR),fc=document.createElement('canvas');fc.width=fc.height=FR;
   const fx=fc.getContext('2d'),img=fx.createImageData(FR,FR);const COL={1:[200,226,176],2:[218,234,196],3:[238,242,208]};
   for(let j=0;j<FR;j++)for(let i=0;i<FR;i++){const x=i*40+20,y=MAP-(j*40+20);let t=0;const dr=Math.abs(x-riverX(y));
     if(dr<70||inSwamp(x,y)){}else{
       let nearV=false;for(const v of villages)if(hyp(x-v.x,y-v.y)<(v.small?260:420)){nearV=true;break;}
       if(!nearV&&noise2(x/900,y/900)+0.25*noise2(x/260,y/260)>0.05)t=1;
-      if(!t&&!nearV&&dr<1100&&elev(x,y)-(62+y*0.006)<14)t=3;
-      if(!t&&!nearV){for(const v of villages.slice(0,3)){const d=hyp(x-v.x,y-v.y);if(d>430&&d<700&&noise2(x/300+9,y/300)>0){t=2;break;}}}}
+      if(!t&&!nearV&&dr<1100&&elev(x,y)-(62+y*0.006/SC)<14)t=3;
+      if(!t&&!nearV){for(const v of villages.slice(0,6)){const d=hyp(x-v.x,y-v.y);if(d>430&&d<700&&noise2(x/300+9,y/300)>0){t=2;break;}}}}
     if(t){veg[(FR-1-j)*FR+i]=t;const k=(j*FR+i)*4,cl=COL[t];img.data[k]=cl[0];img.data[k+1]=cl[1];img.data[k+2]=cl[2];img.data[k+3]=255;}}
   fx.putImageData(img,0,0);
   const vegAt=(x,y)=>{if(x<0||y<0||x>=MAP||y>=MAP)return 0;return veg[((y/40)|0)*FR+((x/40)|0)];};
@@ -389,10 +389,10 @@ function genWorld(code){
   /* declination */
   r();r();const gm=0; // stored in mils internally; + = magnetic north east of grid north
   W={code,elev,elevFn,grad,riverX,river,swamp,inSwamp,streams,streamPaths:streams.map(toPath),streamDist,roads:allRoads,roadPaths:[road1,road2].map(toPath),road3Path:toPath(road3),bridges,isWater,roadDist,
-    villages,buildings,temple,school,hospital,ponds,peaks,towers,landmarks,saddles,ridges,valleys,cliff,crater,samp,forestCanvas:fc,vegAt,isForest,minor,index,supp,dep,labels,gm,gmDeg:gm/MPD,NT};
+    FR,villages,buildings,temple,school,hospital,ponds,peaks,towers,landmarks,saddles,ridges,valleys,cliff,crater,samp,forestCanvas:fc,vegAt,isForest,minor,index,supp,dep,labels,gm,gmDeg:gm/MPD,NT};
 }
 const landOK=(x,y)=>x>200&&y>200&&x<MAP-200&&y<MAP-200&&!W.isWater(x,y)&&Math.abs(x-W.riverX(y))>40;
-function randLand(margin){margin=margin||300;for(let i=0;i<200;i++){const x=rnd(margin,MAP-margin),y=rnd(margin,MAP-margin);if(landOK(x,y))return{x,y};}return{x:4000,y:4000};}
+function randLand(margin){margin=margin||300;for(let i=0;i<200;i++){const x=rnd(margin,MAP-margin),y=rnd(margin,MAP-margin);if(landOK(x,y))return{x,y};}return{x:MAP/2,y:MAP/2};}
 
 /* ---------- symbols ---------- */
 const SYM={
@@ -414,15 +414,15 @@ const mapC=$('#map'),mapX=mapC.getContext('2d');
 const panoC=$('#pano'),panoX=panoC.getContext('2d');
 const dialC=$('#dial'),dialX=dialC.getContext('2d');
 let DPR=1;
-const V={cx:4000,cy:4000,z:0.05};
+const V={cx:MAP/2,cy:MAP/2,z:0.02};
 let O={};          // overlays
 let tapHandler=null;
-function fitZoom(){return Math.min(mapC.clientWidth,mapC.clientHeight)/8600;}
+function fitZoom(){return Math.min(mapC.clientWidth,mapC.clientHeight)/(MAP+600);}
 function sizeCanvas(c){const w=c.clientWidth,h=c.clientHeight;if(!w||!h)return;const W2=Math.round(w*DPR),H2=Math.round(h*DPR);if(c.width!==W2||c.height!==H2){c.width=W2;c.height=H2;}}
 function resize(){try{const cv=APP.view==='comp';document.body.classList.toggle('comp-on',cv);document.body.classList.toggle('comp-big',cv&&!!C.big);const cp=document.getElementById('comp');if(cp&&cv&&typeof compRows==='function')cp.style.gridTemplateRows=compRows(C.mode);}catch(e){}DPR=Math.min(window.devicePixelRatio||1,2.5);sizeCanvas(mapC);sizeCanvas(panoC);sizeCanvas(dialC);requestDraw();}
 function zMax(){return 1.6;}
 function setView(x,y,z){V.cx=clamp(x,-600,MAP+600);V.cy=clamp(y,-600,MAP+600);if(z)V.z=clamp(z,fitZoom()*0.9,zMax());requestDraw();}
-function fitView(){setView(4000,4000,fitZoom());}
+function fitView(){setView(MAP/2,MAP/2,fitZoom());}
 /* ---------- pin nudge pad: move the last pin with arrow buttons (fingers are too coarse on phones) ---------- */
 const NUDGE={src:null,th:null,step:10,el:null,key:''};
 function nudgeReg(get,moved){NUDGE.src={get,moved};NUDGE.th=tapHandler;NUDGE.key='';requestDraw();}
@@ -510,7 +510,7 @@ function drawMap(){
   c.fillStyle='#f6f1e2';c.fillRect(ox,oy-MAP*z,MAP*z,MAP*z);
   c.imageSmoothingEnabled=true;c.drawImage(W.forestCanvas,ox,oy-MAP*z,MAP*z,MAP*z);
   // vegetation symbols
-  if(z>0.09){const st=z>0.3?2:z>0.15?3:6;for(let j=0;j<200;j+=st)for(let i=(j/st)%2?Math.floor(st/2):0;i<200;i+=st){const x=i*40+20,y=j*40+20,[p,q]=S2(x,y);if(p<-8||q<-8||p>w+8||q>h+8)continue;const t=W.vegAt(x,y);if(t===2)SYM.orchard(c,p,q);else if(t===3)SYM.paddy(c,p,q);}}
+  if(z>0.09){const st=z>0.3?2:z>0.15?3:6;for(let j=0;j<W.FR;j+=st)for(let i=(j/st)%2?Math.floor(st/2):0;i<W.FR;i+=st){const x=i*40+20,y=j*40+20,[p,q]=S2(x,y);if(p<-8||q<-8||p>w+8||q>h+8)continue;const t=W.vegAt(x,y);if(t===2)SYM.orchard(c,p,q);else if(t===3)SYM.paddy(c,p,q);}}
   c.save();c.beginPath();c.rect(ox,oy-MAP*z,MAP*z,MAP*z);c.clip();
   c.setTransform(DPR*z,0,0,-DPR*z,DPR*ox,DPR*oy);
   const xa=Math.floor(clamp((0-ox)/z,0,MAP-1)/1000),xb=Math.floor(clamp((w-ox)/z,0,MAP-1)/1000);
@@ -518,7 +518,7 @@ function drawMap(){
   c.lineCap='round';
   if(z>0.09){c.strokeStyle='#c99a6c';c.lineWidth=0.7/z;c.setLineDash([5/z,4/z]);for(let ty=ya;ty<=yb;ty++)for(let tx=xa;tx<=xb;tx++)c.stroke(W.supp[ty*W.NT+tx]);c.setLineDash([]);}
   c.strokeStyle=z<0.07?'rgba(184,128,80,.55)':'#c08a58';c.lineWidth=(z<0.07?0.6:0.85)/z;
-  for(let ty=ya;ty<=yb;ty++)for(let tx=xa;tx<=xb;tx++)c.stroke(W.minor[ty*W.NT+tx]);
+  if(z>=0.03)for(let ty=ya;ty<=yb;ty++)for(let tx=xa;tx<=xb;tx++)c.stroke(W.minor[ty*W.NT+tx]); // whole-sheet view: index contours only
   c.strokeStyle='#a05a22';c.lineWidth=(z<0.07?1.1:1.6)/z;
   for(let ty=ya;ty<=yb;ty++)for(let tx=xa;tx<=xb;tx++)c.stroke(W.index[ty*W.NT+tx]);
   if(z>0.06){c.strokeStyle='#a05a22';c.lineWidth=0.9/z;c.stroke(W.dep);}
@@ -533,7 +533,7 @@ function drawMap(){
   if(W.cliff){const cl=W.cliff;c.strokeStyle='#5b3214';c.lineWidth=1.4;c.beginPath();let first=true;
     for(let u=-cl.L*0.85;u<=cl.L*0.85;u+=20){const x=cl.x-cl.ny*u,y=cl.y+cl.nx*u,[p,q]=S2(x,y);first?c.moveTo(p,q):c.lineTo(p,q);first=false;}c.stroke();
     c.beginPath();for(let u=-cl.L*0.8;u<=cl.L*0.8;u+=Math.max(25,9/z)){const x=cl.x-cl.ny*u,y=cl.y+cl.nx*u,[p,q]=S2(x,y),[p2,q2]=S2(x-cl.nx*Math.max(30,7/z),y-cl.ny*Math.max(30,7/z));c.moveTo(p,q);c.lineTo(p2,q2);}c.lineWidth=1;c.stroke();}
-  if(z>0.06){const s=W.swamp;for(let i=-2;i<=2;i++)for(let j=-1;j<=1;j++){const x=s.x+i*s.a*0.33,y=s.y+j*s.b*0.5;if(W.inSwamp(x,y)){const[p,q]=S2(x,y);SYM.marsh(c,p,q,9);}}}
+  if(z>0.03){const s=W.swamp;for(let i=-2;i<=2;i++)for(let j=-1;j<=1;j++){const x=s.x+i*s.a*0.33,y=s.y+j*s.b*0.5;if(W.inSwamp(x,y)){const[p,q]=S2(x,y);SYM.marsh(c,p,q,9);}}}
   for(const b of W.bridges){const[p,q]=S2(b.x,b.y);const L=Math.max(9,50*z),Wd=Math.max(5,16*z);c.save();c.translate(p,q);c.rotate(-b.ang);c.strokeStyle='#1a1a1a';c.lineWidth=1.4;
     c.beginPath();c.moveTo(-L/2-3,-Wd-3);c.lineTo(-L/2,-Wd);c.lineTo(L/2,-Wd);c.lineTo(L/2+3,-Wd-3);c.moveTo(-L/2-3,Wd+3);c.lineTo(-L/2,Wd);c.lineTo(L/2,Wd);c.lineTo(L/2+3,Wd+3);c.stroke();c.restore();}
   const bs=clamp(16*z,2.2,9);for(const b of W.buildings){const[p,q]=S2(b.x,b.y);SYM.building(c,p,q,bs);}
@@ -546,13 +546,13 @@ function drawMap(){
   c.textBaseline='middle';
   const halo=(t,x,y,font,col,align)=>{c.font=font;c.textAlign=align||'left';c.lineWidth=3;c.strokeStyle='rgba(246,241,226,.92)';c.strokeText(t,x,y);c.fillStyle=col;c.fillText(t,x,y);};
   W.peaks.forEach((pk,i)=>{const[p,q]=S2(pk.x,pk.y);SYM.spot(c,p,q,9,i===0);halo(String(Math.round(pk.h)),p+6,q+1,'500 11px "IBM Plex Mono",monospace','#5b3214');});
-  if(z>0.06){for(const v of W.villages){const[p,q]=S2(v.x,v.y);halo(v.name,p,q-Math.max(14,(v.small?90:130)*z),(v.small?'500 11.5px':'600 12.5px')+' "IBM Plex Sans Thai",sans-serif','#1a1a1a','center');}}
+  if(z>0.025){for(const v of W.villages){const[p,q]=S2(v.x,v.y);halo(v.name,p,q-Math.max(14,(v.small?90:130)*z),(v.small?'500 11.5px':'600 12.5px')+' "IBM Plex Sans Thai",sans-serif','#1a1a1a','center');}}
   if(z>0.09){for(const l of W.labels){const[p,q]=S2(l.x,l.y);if(p<-20||q<-20||p>w+20||q>h+20)continue;let a=-l.ang;if(a>Math.PI/2)a-=Math.PI;if(a<-Math.PI/2)a+=Math.PI;
     c.save();c.translate(p,q);c.rotate(a);c.font='500 10px "IBM Plex Mono",monospace';c.textAlign='center';const tw=c.measureText(String(l.L)).width;c.fillStyle='#f6f1e2';c.fillRect(-tw/2-2,-6,tw+4,12);c.fillStyle='#a05a22';c.fillText(String(l.L),0,0.5);c.restore();}}
   // grid
   c.strokeStyle='rgba(15,25,40,.62)';c.lineWidth=1;c.beginPath();
   const[,top]=S2(0,MAP),[left]=S2(0,0),[,bot]=S2(0,0),[right]=S2(MAP,0);
-  for(let k=0;k<=8;k++){const[gx]=S2(k*1000,0),[,gy]=S2(0,k*1000);
+  for(let k=0;k<=MAP/1000;k++){const[gx]=S2(k*1000,0),[,gy]=S2(0,k*1000);
     c.moveTo(Math.round(gx)+.5,top);c.lineTo(Math.round(gx)+.5,bot);c.moveTo(left,Math.round(gy)+.5);c.lineTo(right,Math.round(gy)+.5);}
   c.stroke();
   // geographic graticule: crosses every 1 minute + labels on the right and bottom edges
@@ -562,10 +562,11 @@ function drawMap(){
     for(let a=la0;a<=la1;a++){const[,q]=S2(0,yAtLatSec(a*60));c.moveTo(left,q);c.lineTo(left+cr*1.6,q);c.moveTo(right,q);c.lineTo(right-cr*1.6,q);}
     for(let o=lo0;o<=lo1;o++){const[p]=S2(xAtLonSec(o*60),0);c.moveTo(p,bot);c.lineTo(p,bot-cr*1.6);c.moveTo(p,top);c.lineTo(p,top+cr*1.6);}
     c.stroke();
-    if(z>0.035){const f='italic 600 11px "IBM Plex Mono",monospace',rx=Math.min(right,w)-4,by=Math.min(bot,h)-8;
+    if(z>0.02){const f='italic 600 11px "IBM Plex Mono",monospace',rx=Math.min(right,w)-4,by=Math.min(bot,h)-8;
       for(let a=la0;a<=la1;a++){const[,q]=S2(0,yAtLatSec(a*60));if(q>30&&q<h-20){const o=dms(a*60);halo(`${o.d}°${o.m}′`,rx,q-8,f,'#2a1e3a','right');}}
       for(let o=lo0;o<=lo1;o++){const[p]=S2(xAtLonSec(o*60),0);if(p>40&&p<w-60){const d=dms(o*60);halo(`${d.d}°${d.m}′`,p,by,f,'#2a1e3a','center');}}}}
-  for(let k=0;k<=8;k++){const[gx]=S2(k*1000,0),[,gy]=S2(0,k*1000);const e=String(E0/1000+k),n=String(N0/1000+k);
+  for(let k=0;k<=MAP/1000;k++){const[gx]=S2(k*1000,0),[,gy]=S2(0,k*1000);const e=String(E0/1000+k),n=String(N0/1000+k);
+    if(k%(z<0.03?5:z<0.06?2:1))continue; // fewer grid numbers on the whole-sheet view
     if(gx>14&&gx<w-14)halo(e,gx,12,'600 12px "IBM Plex Mono",monospace','#14243a','center');
     if(gy>24&&gy<h-10)halo(n,4,gy,'600 12px "IBM Plex Mono",monospace','#14243a','left');}
   drawOverlays(c,w,h);
@@ -592,7 +593,7 @@ function drawPencil(c,L,tmp){const[a1,b1]=S2(L.a.x,L.a.y),[a2,b2]=S2(L.b.x,L.b.y
 function drawOverlays(c,w,h){
   const o=O;
   if(o.tracks)for(const t of o.tracks){if(t.pts.length<2)continue;c.save();c.strokeStyle=t.color;c.lineWidth=t.width||2.2;c.setLineDash(t.dash||[]);c.lineJoin='round';c.beginPath();t.pts.forEach((p,i)=>{const[a,b]=S2(p.x,p.y);i?c.lineTo(a,b):c.moveTo(a,b);});c.stroke();c.restore();}
-  if(o.rays)for(const r of o.rays){const a=r.az*Math.PI/180,[p,q]=S2(r.x,r.y),[p2,q2]=S2(r.x+Math.sin(a)*9000,r.y+Math.cos(a)*9000);c.save();c.strokeStyle='#7a2fb5';c.lineWidth=1.6;c.setLineDash([8,4]);c.beginPath();c.moveTo(p,q);c.lineTo(p2,q2);c.stroke();c.restore();}
+  if(o.rays)for(const r of o.rays){const a=r.az*Math.PI/180,[p,q]=S2(r.x,r.y),[p2,q2]=S2(r.x+Math.sin(a)*(MAP+1000),r.y+Math.cos(a)*(MAP+1000));c.save();c.strokeStyle='#7a2fb5';c.lineWidth=1.6;c.setLineDash([8,4]);c.beginPath();c.moveTo(p,q);c.lineTo(p2,q2);c.stroke();c.restore();}
   if(o.line){const[a1,b1]=S2(o.line.a.x,o.line.a.y),[a2,b2]=S2(o.line.b.x,o.line.b.y);c.save();c.strokeStyle=o.line.color||'#222';c.lineWidth=1.6;if(o.line.dash)c.setLineDash(o.line.dash);c.beginPath();c.moveTo(a1,b1);c.lineTo(a2,b2);c.stroke();c.restore();}
   if(o.lines)for(const L of o.lines)drawPencil(c,L,false);
   if(o.tmpLine)drawPencil(c,o.tmpLine,true);
@@ -1077,7 +1078,7 @@ function m1Point(t){
   if(t==='bridge')return W.bridges.length?pick(W.bridges):null;
   if(t==='spot')return W.peaks.length?pick(W.peaks):null;
   if(t==='pond')return W.ponds.length?pick(W.ponds):null;
-  if(t==='river'){const y=rnd(600,7400);return{x:W.riverX(y),y};}
+  if(t==='river'){const y=rnd(600,MAP-600);return{x:W.riverX(y),y};}
   if(t==='stream'){const s=W.streams.length?pick(W.streams):null;if(!s)return null;const p=s[(s.length*rnd(0.3,0.7))|0];return{x:p[0],y:p[1]};}
   if(t==='swamp')return{x:W.swamp.x,y:W.swamp.y};
   if(t==='road'){for(let i=0;i<50;i++){const rd=pick(W.roads.slice(0,2)),p=pick(rd);if(p[0]>400&&p[1]>400&&p[0]<MAP-400&&p[1]<MAP-400&&W.villages.every(v=>hyp(v.x-p[0],v.y-p[1])>600)&&W.bridges.every(b=>hyp(b.x-p[0],b.y-p[1])>300))return{x:p[0],y:p[1]};}return null;}
@@ -1292,7 +1293,7 @@ function runL1(S,L){const qs=mapQuestions(5,2,3,2);const limit=100;let i=0;const
     sheet.querySelectorAll('.choices button').forEach(b=>b.onclick=()=>{const ok=opts[+b.dataset.k]===ans;sheet.querySelectorAll('.choices button').forEach(x=>{x.disabled=true;if(opts[+x.dataset.k]===ans)x.classList.add('ok');});
       if(ok)S.hit(7);else{b.classList.add('no');S.miss();}setTimeout(()=>{i++;show();},ok?450:1200);});};show();}
 /* L2 grid read */
-function runL2(S,L){const qs=[];for(let k=0;k<8;k++){const d=k<5?6:8;let p=null;for(let t=0;t<100&&!p;t++){const x=d===6?100*Math.floor(rnd(3,77))+rnd(30,70):10*Math.floor(rnd(30,770))+rnd(3,7),y=d===6?100*Math.floor(rnd(3,77))+rnd(30,70):10*Math.floor(rnd(30,770))+rnd(3,7);if(!W.isWater(x,y))p={x,y};}qs.push({d,p:p||{x:4050,y:4050}});}
+function runL2(S,L){const qs=[];for(let k=0;k<8;k++){const d=k<5?6:8;let p=null;for(let t=0;t<100&&!p;t++){const x=d===6?100*Math.floor(rnd(3,MAP/100-3))+rnd(30,70):10*Math.floor(rnd(30,MAP/10-30))+rnd(3,7),y=d===6?100*Math.floor(rnd(3,MAP/100-3))+rnd(30,70):10*Math.floor(rnd(30,MAP/10-30))+rnd(3,7);if(!W.isWater(x,y))p={x,y};}qs.push({d,p:p||{x:MAP/2+50,y:MAP/2+50}});}
   const limit=150;let i=0;const left=startTimer(limit,()=>S.end(0));
   const show=()=>{if(S.over)return;if(i>=qs.length)return S.end(Math.round(20*left()/limit));const q=qs[i];O={plate:O.plate||null,marks:[{x:q.p.x,y:q.p.y,kind:'dot'}]};setView(q.p.x,q.p.y,q.d===8?0.9:0.35);
     setSheet(hud(`ภารกิจ ${S.idx+1} · ${L.name} · ${i+1}/${qs.length}`,true)+`<p class="q">พิกัด <b>${q.d} หลัก</b> ของจุดแดงคืออะไร?</p>
@@ -1390,6 +1391,7 @@ function runNight(S,L){const sp=standPoint(1);C.heading=rnd(0,360);C.disp=magHea
 
 /* ---------- navigation engine (L8 patrol & Score-O) ---------- */
 function runNav(cfg){
+  const RF=cfg.mode==='scoreo'?SOFIND:TOL.find; // search radius for this run
   const sp=cfg.start;const N={stride:1+gauss()*0.03,tp:{...sp},pp:{...sp},found:new Set(),trueTrack:[{...sp}],plan:[[{...sp}]],pins:[],rays:[],searches:[],time:0,counted:0,actual:0,log:[],pinMode:false,done:false,endArm:false};
   const tg=cfg.targets;
   const pointsNow=()=>[...N.found].reduce((a,k)=>a+tg[k].pts,0);
@@ -1433,20 +1435,20 @@ function runNav(cfg){
     const pc=Math.round(cnt*1.4);const aim=aimOf(N.pp,wrap360(az),cnt);if(aim)N.legs.push({from:{...N.tp},pp:{...N.pp},az:wrap360(az),paces:pc,cnt,end:{x,y},tgt:{x:aim.x,y:aim.y},label:aim.label});N.trueTrack.push({x,y});N.tp={x,y};N.counted+=pc;N.actual+=act;const pa=(wrap360(az)+W.gmDeg)*Math.PI/180;N.pp={x:N.pp.x+Math.sin(pa)*cnt,y:N.pp.y+Math.cos(pa)*cnt};N.plan[N.plan.length-1].push({...N.pp});
     N.log.push(`เดิน ${fd(az)}° นับได้ ${pc} ก้าว${wet?' (ลุยข้ามน้ำ)':''}${stop?' — '+stop:''}`);if(stop)sfx('bad');ui(stop?`<b>${stop}</b> หลังนับได้ ${pc} ก้าว`:`เดินครบ ${pc} ก้าว${wet?' · ลุยข้ามน้ำระหว่างทาง':''}`);}
   function find(){N.endArm=false;N.time+=cfg.mode==='scoreo'?3:5;let hit=-1;
-    if(cfg.mode==='patrol'){const k=nextIdx();if(k>=0&&dist(N.tp,tg[k])<=TOL.find)hit=k;}else{let bd=TOL.find+1;tg.forEach((c,k)=>{if(N.found.has(k))return;const d=dist(N.tp,c);if(d<bd){bd=d;hit=k;}});}
+    if(cfg.mode==='patrol'){const k=nextIdx();if(k>=0&&dist(N.tp,tg[k])<=RF)hit=k;}else{let bd=RF+1;tg.forEach((c,k)=>{if(N.found.has(k))return;const d=dist(N.tp,c);if(d<bd){bd=d;hit=k;}});}
     N.searches.push({x:N.tp.x,y:N.tp.y,ok:hit>=0});
     if(hit>=0){N.fails=0;N.found.add(hit);const c=tg[hit];N.pp={...c};N.plan.push([{...c}]);N.log.push(`พบ ${c.label}`);flash(true);
       if(cfg.mode==='patrol'&&N.found.size===tg.length)return finish(true);ui(`<b>พบ ${esc(c.label)}!</b>${cfg.mode==='scoreo'?' +'+c.pts+' คะแนน':''} ตำแหน่งของคุณคือ ${gridRef(c.x,c.y,8)}`);}
     else{flash(false);N.fails++;N.log.push('ค้นหาไม่พบ');let c=null;if(cfg.mode==='patrol'){const k=nextIdx();c=k>=0?tg[k]:null;}else{let bd=1e9;tg.forEach((t,k)=>{if(N.found.has(k))return;const d=dist(N.tp,t);if(d<bd){bd=d;c=t;}});}
-      ui(`ไม่พบ${cfg.mode==='scoreo'?'ธง':'จุดตรวจ'}ในรัศมี ${TOL.find} ม.${c?' · '+(cfg.mode==='scoreo'?'ธงที่ใกล้ที่สุด: ':'')+searchHelp(dist(N.tp,c),gridAz(N.tp,c),N.fails):''}`);}}
-  function endPress(){if(cfg.mode==='patrol')return finish(false);const atFinish=dist(N.tp,sp)<=TOL.find;if(atFinish)return finish(true);if(!N.endArm){N.endArm=true;return ui(`คุณยังไม่อยู่ที่เส้นชัย (ห่างเกิน ${TOL.find} ม.) จบตอนนี้คะแนนจะถูกหักครึ่ง · เส้นชัย${navBand(dist(N.tp,sp))} ไปทาง${dir8(gridAz(N.tp,sp))}`);}finish(false);}
+      ui(`ไม่พบ${cfg.mode==='scoreo'?'ธง':'จุดตรวจ'}ในรัศมี ${RF} ม.${c?' · '+(cfg.mode==='scoreo'?'ธงที่ใกล้ที่สุด: ':'')+searchHelp(dist(N.tp,c),gridAz(N.tp,c),N.fails):''}`);}}
+  function endPress(){if(cfg.mode==='patrol')return finish(false);const atFinish=dist(N.tp,sp)<=RF;if(atFinish)return finish(true);if(!N.endArm){N.endArm=true;return ui(`คุณยังไม่อยู่ที่เส้นชัย (ห่างเกิน ${TOL.find} ม.) จบตอนนี้คะแนนจะถูกหักครึ่ง · เส้นชัย${navBand(dist(N.tp,sp))} ไปทาง${dir8(gridAz(N.tp,sp))}`);}finish(false);}
   function finish(ok){N.done=true;tapHandler=null;setStageView('map',false);
     const marks=[{x:sp.x,y:sp.y,kind:'sp',label:cfg.mode==='scoreo'?'เส้นชัย':'SP'}];tg.forEach((c,k)=>marks.push({x:c.x,y:c.y,kind:'cp',label:c.label,color:N.found.has(k)?'#1f8a3a':'#d6261c'}));
     N.searches.forEach(s=>marks.push({x:s.x,y:s.y,kind:'x',color:s.ok?'#1f8a3a':'#d6261c'}));
     O={marks,tracks:[...N.plan.map(seg=>({pts:seg,color:'#555',dash:[6,5],width:1.8})),{pts:N.trueTrack,color:'#d6261c',width:2.6}]};fitView();
     cfg.onEnd({ok,review:legReview(N.legs,140),found:N.found.size,points:pointsNow(),time:N.time,wrong:N.searches.filter(s=>!s.ok).length,counted:N.counted,actual:N.actual,endDist:dist(N.tp,sp)});}
   setView(sp.x,sp.y,0.2);ui('');}
-function navStart(){for(let i=0;i<80;i++){const p=randLand(900);if(W.roadDist(p.x,p.y)<60)return p;}return randLand(900);}
+function navStart(){for(let i=0;i<400;i++){const p=randLand(900);if(W.roadDist(p.x,p.y)<60)return p;}return randLand(900);}
 function runL8(S,L){const sp=navStart();const tg=[];let prev=sp;for(let k=0;k<2;k++){let c=null;for(let i=0;i<300&&!c;i++){const a=rnd(0,6.283),d=rnd(700,1200),p={x:prev.x+Math.sin(a)*d,y:prev.y+Math.cos(a)*d};if(landOK(p.x,p.y)&&p.x>500&&p.y>500&&p.x<MAP-500&&p.y<MAP-500&&dist(p,sp)>500)c=p;}c=c||randLand(600);tg.push({...c,label:'CP'+(k+1),pts:40});prev=c;}
   const par=(dist(sp,tg[0])+dist(tg[0],tg[1]))/1000*15*1.3;
   runNav({title:`ภารกิจ ${S.idx+1} · ${L.name}`,mode:'patrol',start:sp,targets:tg,onEnd:r=>{const bonus=r.found===2?Math.round(20*clamp(par/Math.max(r.time,1),0,1)):0;S.pts=45*r.found+Math.round(bonus/2)-3*r.wrong;S.extra=`<p class="muted" style="font-size:13.5px">พบ ${r.found}/2 จุดตรวจ (จุดละ 45) · ค้นหาผิดที่ ${r.wrong} ครั้ง (ครั้งละ −3) · พบเมื่ออยู่ห่างจุดตรวจไม่เกิน ${TOL.find} ม. · เส้นแดง = ทางที่เดินจริง · เส้นประ = ทางที่คิดว่าเดิน</p>`+r.review;S.end(0);}});}
@@ -1478,16 +1480,17 @@ function showCampaign(){stopTimer();O={};tapHandler=null;setStageView('map',fals
     <p class="muted" style="font-size:13px;margin-top:12px">ได้ 60 คะแนน = ★ ผ่าน · 80 = ★★ · 95 = ★★★ · ผ่านแล้วปลดล็อกภารกิจถัดไปและเลื่อนยศ</p><div class="row"><button class="btn" id="tosend">ส่งคะแนนให้ครูฝึก</button></div>`);on('tosend',()=>setTab('lb'));
   sheet.querySelectorAll('.lv').forEach(b=>b.onclick=()=>startLevel(+b.dataset.i));}
 const SOLIM=CFG.short?45:90;
+const SOFIND=150; // Score-O: a flag counts as found within this radius (m); keep between 100 and 200
 function makeFlags(sp){const r=mulberry32(hashStr(GS.code+'#scoreo'));const fl=[];let guard=0;
-  while(fl.length<(CFG.short?6:10)&&guard++<2000){const x=500+r()*7000,y=500+r()*7000,p={x,y};if(!landOK(x,y))continue;const d=dist(p,sp);if(d<400||d>(CFG.short?2400:3600))continue;if(fl.some(f=>dist(f,p)<450))continue;
+  while(fl.length<(CFG.short?6:10)&&guard++<2000){const x=500+r()*(MAP-1000),y=500+r()*(MAP-1000),p={x,y};if(!landOK(x,y))continue;const d=dist(p,sp);if(d<400||d>(CFG.short?2400:3600))continue;if(fl.some(f=>dist(f,p)<450))continue;
     let pts=d<1500?10:d<2500?20:30;if(W.isForest(x,y))pts+=10;fl.push({x,y,pts});}
   fl.sort((a,b)=>a.pts-b.pts);return fl.map((f,k)=>({...f,label:'ธง '+String.fromCharCode(65+k)}));}
-function scoreOStart(){const r=mulberry32(hashStr(GS.code+'#start'));for(let i=0;i<200;i++){const p={x:2500+r()*3000,y:2500+r()*3000};if(landOK(p.x,p.y)&&W.roadDist(p.x,p.y)<80)return p;}return{x:4000,y:4000};}
+function scoreOStart(){const r=mulberry32(hashStr(GS.code+'#start'));for(let i=0;i<200;i++){const p={x:SC*2500+r()*SC*3000,y:SC*2500+r()*SC*3000};if(landOK(p.x,p.y)&&W.roadDist(p.x,p.y)<80)return p;}return{x:MAP/2,y:MAP/2};}
 function showScoreO(){stopTimer();O={};tapHandler=null;setStageView('map',false);const sp=scoreOStart(),fl=makeFlags(sp);const best=GS.st.so[GS.code];
   O={marks:[{x:sp.x,y:sp.y,kind:'sp',label:'เริ่ม/เส้นชัย'}]};setView(sp.x,sp.y,0.08);
   setSheet(`<div class="eyebrow">โหมดแข่งขัน · รหัส ${esc(GS.code)}</div><h2>Score-O ล่าธง</h2>
     <p>ธง ${fl.length} ผืนซ่อนอยู่ในพื้นที่ แต่ละผืนมีแต้ม 10-40 ตามความไกลและความยาก มีเวลา <b>${SOLIM} นาที</b> (เวลาในเกม) เลือกเก็บธงลำดับไหนก็ได้แล้วกลับเส้นชัย</p>
-    <ul style="padding-left:20px;font-size:14px;margin:6px 0"><li>เกินเวลา หักนาทีละ 2 คะแนน</li><li>ค้นหาผิดที่เสียเวลา 3 นาที</li><li>จบนอกเส้นชัย คะแนนหักครึ่ง</li><li>ทุกคนที่ใช้รหัสเดียวกันได้ธงชุดเดียวกัน แข่งกันบนตารางอันดับ</li></ul>
+    <ul style="padding-left:20px;font-size:14px;margin:6px 0"><li>พบธงเมื่ออยู่ห่างจากธงไม่เกิน ${SOFIND} ม. (กด "ค้นหาธง")</li><li>เกินเวลา หักนาทีละ 2 คะแนน</li><li>ค้นหาผิดที่เสียเวลา 3 นาที</li><li>จบนอกเส้นชัย คะแนนหักครึ่ง</li><li>ทุกคนที่ใช้รหัสเดียวกันได้ธงชุดเดียวกัน แข่งกันบนตารางอันดับ</li></ul>
     <p class="mono">สถิติของคุณ: ${best?best.pts+' คะแนน · '+best.time+' นาที':'ยังไม่มี'}</p>
     <div class="row"><button class="btn primary" id="go">เริ่มแข่ง</button></div>`);
   on('go',()=>runNav({title:'Score-O · '+GS.code,mode:'scoreo',start:sp,targets:fl,limit:SOLIM,onEnd:r=>{
@@ -1496,7 +1499,7 @@ function showScoreO(){stopTimer();O={};tapHandler=null;setStageView('map',false)
     setSheet(`<div class="result"><div class="eyebrow">Score-O · ${esc(GS.code)}</div><div class="score mono">${pts}<span class="muted" style="font-size:18px"> คะแนน</span></div>
       <p>ธง ${r.found}/${fl.length} · เวลา ${t} นาที ${r.ok?'· เข้าเส้นชัย':'· <span style="color:var(--bad)">ไม่เข้าเส้นชัย (หักครึ่ง)</span>'}</p>
       ${better?'<div class="promo">สถิติใหม่ของคุณ!</div>':''}
-      <p class="muted" style="font-size:13.5px">เส้นแดง = ทางที่เดินจริง · เส้นประ = ทางที่คิดว่าเดิน · ✕ = จุดค้นหา (พบเมื่ออยู่ห่างไม่เกิน ${TOL.find} ม.)</p><div style="text-align:left">${r.review}</div>
+      <p class="muted" style="font-size:13.5px">เส้นแดง = ทางที่เดินจริง · เส้นประ = ทางที่คิดว่าเดิน · ✕ = จุดค้นหา (พบเมื่ออยู่ห่างไม่เกิน ${SOFIND} ม.)</p><div style="text-align:left">${r.review}</div>
       <div class="row" style="justify-content:center"><button class="btn primary" id="again">แข่งอีกครั้ง</button><button class="btn" id="lb">ดูตารางอันดับ</button></div></div>`);
     on('again',showScoreO);on('lb',()=>setTab('lb'));}}));}
 

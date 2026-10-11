@@ -1,0 +1,41 @@
+name: check
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # The four pages are generated from src/; a hand edit or a forgotten rebuild shows up as a diff.
+      - name: Rebuild pages and verify they are committed up to date
+        run: |
+          python3 tools/build.py
+          git diff --exit-code -- practice.html practice-short.html game.html game-short.html \
+            || { echo "::error::Generated pages are stale. Run python3 tools/build.py and commit the result."; exit 1; }
+      # Every inline <script> and the hand-written JS files must at least parse.
+      - name: JavaScript syntax check
+        run: |
+          cat > "$RUNNER_TEMP/syntax.js" <<'JS'
+          const fs = require('fs'), vm = require('vm');
+          let bad = 0;
+          for (const f of process.argv.slice(2)) {
+            const src = fs.readFileSync(f, 'utf8');
+            const chunks = f.endsWith('.html')
+              ? [...src.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1])
+              : [src];
+            chunks.forEach((c, i) => {
+              try { new vm.Script(c, { filename: `${f}#${i}` }); }
+              catch (e) { bad++; console.error(`::error file=${f}::${e.message}`); }
+            });
+          }
+          process.exit(bad ? 1 : 0);
+          JS
+          node "$RUNNER_TEMP/syntax.js" practice.html practice-short.html game.html game-short.html compass.html gesture-compass.html manual.html index.html poster.html config.js sw.js qr.js
