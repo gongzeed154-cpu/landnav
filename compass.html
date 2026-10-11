@@ -41,6 +41,13 @@ ol{margin:6px 0 0;padding-left:20px}
 li{margin:4px 0}
 .tip{margin-top:8px;padding:8px 10px;border-left:4px solid var(--accent);background:var(--accent-soft);border-radius:4px;font-size:14px}
 .note{color:var(--muted);font-size:13px}
+.drill .q{font-weight:600;margin:4px 0 8px}
+.drill .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.drill input{width:110px;min-height:40px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:600 16px inherit;font-family:inherit}
+.drill .primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.drill .fb{margin-top:10px;padding:8px 10px;border-radius:6px;font-size:14px;border-left:4px solid var(--line);background:var(--accent-soft)}
+.drill .fb.ok{border-left-color:#2b7a30}.drill .fb.no{border-left-color:#b3261e}
+.drill .score{margin-left:auto;font-size:13px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -73,6 +80,16 @@ li{margin:4px 0}
       <p class="note">ลากบนภาพเพื่อหมุนตัว · ในท่านี้ทิศที่อ่านได้คือทิศที่ลำตัวหันไป (มุมกริด = มุมแม่เหล็ก)</p>
     </section>
   </div>
+  <section class="card drill" aria-live="polite">
+    <h2>โจทย์ฝึก <span class="score" id="score"></span></h2>
+    <div class="q" id="dq"></div>
+    <div class="row">
+      <input id="dans" type="number" inputmode="numeric" min="0" max="360" placeholder="มุมที่อ่านได้ (°)" aria-label="มุมที่อ่านได้ หน่วยองศา">
+      <button class="btn primary" id="dcheck">ตรวจคำตอบ</button>
+      <button class="btn" id="dnew">โจทย์ใหม่</button>
+    </div>
+    <div class="fb" id="dfb" hidden></div>
+  </section>
 </main>
 <script>
 (function(){
@@ -133,6 +150,7 @@ function setPosture(p){
   $('#pano').style.height=p==='cheek'?'150px':'0';
   $('#dial').style.height=p==='cheek'?'210px':'300px';
   drawFigure();resize();
+  if(typeof newDrill==='function'&&D.tg!==undefined)newDrill();
 }
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setPosture(b.dataset.p));
 
@@ -214,6 +232,56 @@ const end=()=>{drag=null;};stage.addEventListener('pointerup',end);stage.addEven
 const turn=d=>{S.heading=wrap(S.heading+d);req();};
 $('#l10').onclick=()=>turn(-10);$('#l1').onclick=()=>turn(-1);$('#r1').onclick=()=>turn(1);$('#r10').onclick=()=>turn(10);
 window.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')turn(e.shiftKey?-10:-1);else if(e.key==='ArrowRight')turn(e.shiftKey?10:1);});
+
+
+/* ---------- practice drill (pass thresholds mirror TOL in src/core.js: compass ±4°) ---------- */
+const TOL_DEG=4;
+const D={ans:null,tg:null,n:0,ok:0,done:false};
+const rnd=n=>Math.floor(Math.random()*n);
+function newDrill(){
+  D.done=false;$('#dfb').hidden=true;$('#dans').value='';
+  if(posture==='cheek'){
+    D.tg=TARGETS[rnd(TARGETS.length)];
+    S.heading=wrap(D.tg.az+(rnd(2)?1:-1)*(40+rnd(80)));
+    $('#dq').innerHTML=`ยกเข็มทิศแนบแก้ม <b>เล็งไปที่ “${D.tg.name}”</b> ให้เส้นเล็งหน้าทับที่หมาย แล้วอ่านมุมใต้เส้นดัชนีดำ (เป็นองศา สีแดง) พิมพ์ลงในช่อง`;
+    $('#dans').style.display='';
+  }else{
+    D.tg={az:5*(1+rnd(71))};
+    S.heading=wrap(D.tg.az+(rnd(2)?1:-1)*(30+rnd(120)));
+    $('#dq').innerHTML=`ถือเข็มทิศท่ากลางตัว แล้ว<b>หันตัวไปทิศ ${D.tg.az}°</b> ให้เส้นดัชนีดำชี้ที่มุมนี้ จากนั้นกดตรวจ`;
+    $('#dans').style.display='none';
+  }
+  req();
+}
+function showFb(ok,html){const f=$('#dfb');f.className='fb '+(ok?'ok':'no');f.innerHTML=html;f.hidden=false;}
+function checkDrill(){
+  if(D.done)return;
+  const az=D.tg.az;let ok,msg;
+  const turnHint=d=>d>0?'หมุนตัวไปทางขวา':'หมุนตัวไปทางซ้าย';
+  if(posture==='center'){
+    const off=angDiff(S.heading,az);ok=Math.abs(off)<=TOL_DEG;
+    msg=ok?`ถูกต้อง — ลำตัวหันไปทิศ ${Math.round(S.heading)}° (เป้าหมาย ${az}° คลาด ${Math.abs(off).toFixed(1)}° อยู่ในเกณฑ์ ±${TOL_DEG}°)`
+          :`ยังไม่ผ่าน — ลำตัวหันไปทิศ ${Math.round(S.heading)}° เป้าหมาย <b>${az}°</b> คลาด ${Math.abs(off).toFixed(1)}° ต้อง${turnHint(-off)}อีก (เกณฑ์ ±${TOL_DEG}°) · ในท่านี้ให้หมุน<b>ทั้งตัว</b> ไม่ใช่หมุนแต่ข้อมือ`;
+  }else{
+    const raw=$('#dans').value.trim();
+    if(raw===''){showFb(false,'พิมพ์มุมที่อ่านได้ก่อนกดตรวจ');return;}
+    const ans=Number(raw),aim=angDiff(S.heading,az),aimOk=Math.abs(aim)<=TOL_DEG,readOk=Math.abs(angDiff(ans,az))<=TOL_DEG;
+    ok=aimOk&&readOk;
+    if(ok)msg=`ถูกต้อง — มุมภาคของ “${D.tg.name}” คือ <b>${az}°</b> คุณอ่านได้ ${ans}° (เกณฑ์ ±${TOL_DEG}°)`;
+    else{const tips=[];
+      if(!aimOk)tips.push(`เส้นเล็งยังไม่ทับที่หมาย (คลาด ${Math.abs(aim).toFixed(1)}° ต้อง${turnHint(-aim)}) — ใช้ปุ่ม 1° ปรับละเอียด`);
+      if(!readOk){
+        if(ans>360)tips.push('ค่านี้เกิน 360 น่าจะอ่านสเกลมิลสีดำ (วงนอก) ให้อ่านสเกลองศาสีแดง (วงใน)');
+        else if(Math.abs(angDiff(ans,az+180))<=TOL_DEG)tips.push('อ่านกลับด้านไป 180° — ให้อ่านใต้เส้นดัชนีดำที่ขีดตรงกลางแว่นขยาย ไม่ใช่ปลายอีกข้างของเข็ม');
+        else if(Math.abs(angDiff(ans,S.disp))<=TOL_DEG&&!aimOk)tips.push('ค่าที่อ่านตรงกับหน้าปัดตอนนี้ แต่ที่หมายอยู่คนละทิศ — เล็งให้ทับที่หมายก่อนแล้วค่อยอ่าน');
+        else tips.push(`ค่าที่อ่านต่างจากความจริง ${Math.abs(angDiff(ans,az)).toFixed(0)}° — อ่านหลังเข็มนิ่งแล้ว และตาต้องอยู่ในแนวเดียวกับช่องเล็งหลัง`);}
+      msg=`ยังไม่ผ่าน — มุมที่ถูกคือ <b>${az}°</b><br>• `+tips.join('<br>• ');}
+  }
+  D.n++;if(ok)D.ok++;D.done=true;
+  $('#score').textContent=`ผ่าน ${D.ok}/${D.n}`;showFb(ok,msg);
+}
+$('#dcheck').onclick=checkDrill;$('#dnew').onclick=newDrill;
+$('#dans').addEventListener('keydown',e=>{if(e.key==='Enter')checkDrill();});
 
 setPosture('center');
 })();
