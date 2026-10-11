@@ -53,6 +53,8 @@ After any change that ships, bump `VERSION` in `sw.js` so phones fetch the new f
 ## Invariants — keep these stable
 
 - Grid azimuth = magnetic azimuth (`gm = 0` in `genWorld`); walking ignores obstacles (straight-line displacement).
+- The sheet is 20 × 20 km (`MAP=20000`, `SC=MAP/8000` in `src/core.js`; grid 40–60 E, 20–40 N). Terrain counts scale with area (`nh`, streams, 6 villages along the main road, up to 14 peaks), the elevation grid step is 40 m, the vegetation raster 40 m cells, contour tiles 1 km (`NT=MAP/1000`). Changing `MAP` changes every map, so a given mission code gives a different area than it did on the old 8 × 8 km sheet; in-progress snapshots (`lnav-prog`) regenerate from their seed on the new map. `gesture-compass.html` carries a hand-kept copy of `genWorld`/`drawMap` and must be patched the same way.
+- Zoom thresholds in `drawMap` are in px per metre: at the whole-sheet view (~0.02) only index contours, village names and every 5th grid number are drawn.
 - Same mission code ⇒ identical map for everyone. Do not change the RNG call order in `genWorld` without a reason; it changes every map.
 - localStorage keys: `lnav-v1` / `lnav-s1` (practice store full/short), `lnav-hist` / `lnav-shist`, `lnav-name`, `lnav-sid`, `opcompass-v1` / `opcompass-s1` (game), `lnav-outbox`, `lnav-room`, `lnav-roommode`.
 - Check code formats (verified by `hash_` in Code.gs and `hashS` in the apps — FNV-1a, base36, last 4 chars):
