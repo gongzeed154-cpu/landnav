@@ -1,4 +1,7 @@
 /* ================= SHARED CORE: world, map, tools, lensatic compass ================= */
+/* demo build keeps its own copy of every stored key ("demo:" prefix) so trial data never mixes with the real course */
+var localStorage=(function(){let ls=null;try{ls=window.localStorage;ls.getItem('x');}catch(e){const m={};ls={getItem:k=>(k in m?m[k]:null),setItem:(k,v)=>{m[k]=String(v);},removeItem:k=>{delete m[k];}};}
+  if(!CFG.demo)return ls;const P='demo:';return{getItem:k=>ls.getItem(P+k),setItem:(k,v)=>ls.setItem(P+k,v),removeItem:k=>ls.removeItem(P+k)};})();
 /* ---------- constants & helpers ---------- */
 const MAP=20000, SC=MAP/8000, E0=40000, N0=20000, ZONE='47P PS', MPD=6400/360;
 const FOVS=[30,45,60,90];let FOVI=(typeof window!=='undefined'&&window.innerWidth<700)?2:1,FOV=FOVS[FOVI];
@@ -576,7 +579,8 @@ const NET={last:0,status:''};
 const netURL=()=>String((window.LNAV_CONFIG&&window.LNAV_CONFIG.SCRIPT_URL)||'').trim();
 function outbox(){try{return JSON.parse(localStorage.getItem('lnav-outbox')||'[]')||[];}catch(e){return[];}}
 function saveOutbox(a){try{localStorage.setItem('lnav-outbox',JSON.stringify(a.slice(-40)));}catch(e){}}
-function netSend(p){if(CFG.web&&ROOM.code&&ROOM.state==='open'){p=Object.assign({},p,{room:ROOM.code,key:p.key+'@'+ROOM.code});}
+function netSend(p){if(CFG.demo)p=Object.assign({},p,{demo:true,key:'demo-'+p.key});
+  if(CFG.web&&ROOM.code&&ROOM.state==='open'){p=Object.assign({},p,{room:ROOM.code,key:p.key+'@'+ROOM.code});}
   else if(CFG.web&&ROOM.state&&ROOM.state!=='none'&&ROOM.state!=='open')return Promise.resolve('locked');
   const box=outbox().filter(x=>x.key!==p.key);box.push(p);saveOutbox(box);return netFlush();}
 let netBusy=null;
@@ -673,7 +677,7 @@ function roomTick(){clearInterval(ROOM.t1);clearTimeout(ROOM.t2);const I=ROOM.in
     if(I.close){const w=I.close-srvNow();if(w<90000)ROOM.t2=setTimeout(()=>{netFlush();roomCheck(ROOM.code);},Math.max(500,w+1500));}}
   else if(ROOM.state==='closed')ROOM.t2=setTimeout(()=>roomCheck(ROOM.code),120000);
   else if(ROOM.state==='none'||ROOM.state==='')ROOM.t2=setTimeout(()=>roomCheck(ROOM.code),120000);}
-function roomInit(){if(!CFG.web)return;if(!netURL()){idGate();return;}const s=roomLoad();
+function roomInit(){if(!CFG.web)return;if(CFG.demo||!netURL()){idGate();return;}const s=roomLoad();
   if(s&&s.code){ROOM.code=s.code;ROOM.info=s;ROOM.off=s.off||0;}
   if(roomMode()==='on')roomGate('check');
   roomCheck(ROOM.code);
@@ -685,18 +689,18 @@ function toast(msg,ms){let t=document.getElementById('lnavtoast');if(!t){t=docum
   t.innerHTML=msg;t.style.opacity='1';t.hidden=false;clearTimeout(t._h);t._h=setTimeout(()=>{t.style.opacity='0';setTimeout(()=>{t.hidden=true;},350);},ms||4500);}
 function lsG(k){try{return localStorage.getItem(k)||'';}catch(e){return'';}}
 function lsS(k,v){try{localStorage.setItem(k,v);}catch(e){}}
-async function restoreFromServer(name,sid,quiet){const u=netURL();if(!CFG.web||!u||!name)return false;
+async function restoreFromServer(name,sid,quiet){const u=netURL();if(CFG.demo||!CFG.web||!u||!name)return false;
   try{const j=await getJSON(u+(u.includes('?')?'&':'?')+'action=resume&kind='+(window.APPKIND||'app')+'&set='+(CFG.short?'S':'F')+'&name='+encodeURIComponent(name)+'&sid='+encodeURIComponent(sid||'')+'&t='+Date.now());if(!j||!j.ok||!j.found||!j.data)return false;const n=typeof window.onRestore==='function'?window.onRestore(j.data):0;
     if(n&&!quiet)toast(`กู้คืนผลการฝึกเดิมจากระบบแล้ว ✓ (${n} รายการ)`);return n>0;}catch(e){return false;}}
 function idGate(){if(!CFG.web||lsG('lnav-name').trim())return;if(document.getElementById('idgate'))return;roomStyle();
   const g=document.createElement('div');g.id='roomgate';g.className='idgate';g.setAttribute('role','dialog');g.setAttribute('aria-modal','true');
-  g.innerHTML=`<div class="rg" id="idgate"><div class="big">🪖</div><h2>ข้อมูลผู้รับการฝึก</h2><p>กรอกครั้งเดียว เครื่องจะจำไว้ ถ้าหลุดหรือเปลี่ยนเครื่อง กรอกชื่อและเลขที่เดิม ระบบจะดึงผลที่เคยทำกลับมาให้</p>
+  g.innerHTML=`<div class="rg" id="idgate"><div class="big">🪖</div><h2>${CFG.demo?'ทดลองเล่น (Demo)':'ข้อมูลผู้รับการฝึก'}</h2><p>${CFG.demo?'เล่นทดลองได้เลย ไม่ต้องรอเปิดห้อง ใช้เวลาประมาณ 10–15 นาที ผลบันทึกในชีท “ทดลองเล่น” แยกจากคะแนนจริง':`กรอกครั้งเดียว เครื่องจะจำไว้ ถ้าหลุดหรือเปลี่ยนเครื่อง กรอกชื่อและเลขที่เดิม ระบบจะดึงผลที่เคยทำกลับมาให้`}</p>
     <input id="idname" maxlength="60" autocomplete="name" placeholder="ยศ ชื่อ-สกุล" style="letter-spacing:0;text-transform:none;font:600 18px 'IBM Plex Sans Thai',sans-serif" aria-label="ยศ ชื่อ-สกุล">
-    <input id="idsid" maxlength="20" inputmode="numeric" autocomplete="off" placeholder="เลขที่" style="letter-spacing:0;font:600 18px 'IBM Plex Sans Thai',sans-serif" aria-label="เลขที่">
+    <input id="idsid" maxlength="20" inputmode="${CFG.demo?'text':'numeric'}" autocomplete="off" placeholder="${CFG.demo?'เบอร์โทร / LINE ID (ไม่บังคับ)':'เลขที่'}" style="letter-spacing:0;font:600 18px 'IBM Plex Sans Thai',sans-serif" aria-label="${CFG.demo?'ช่องทางติดต่อ':'เลขที่'}">
     <div class="err" id="iderr"></div><button class="go" id="idgo">เริ่มฝึก</button></div>`;
   document.body.appendChild(g);const q=id=>document.getElementById(id);setTimeout(()=>q('idname').focus(),60);
-  const go=async()=>{const nm=q('idname').value.replace(/\s+/g,' ').trim(),sd=q('idsid').value.trim();if(nm.length<3){q('iderr').textContent='กรอกยศ ชื่อ-สกุล';return;}if(!sd){q('iderr').textContent='กรอกเลขที่';return;}
-    lsS('lnav-name',nm);lsS('lnav-sid',sd);try{if(typeof window.onIdentity==='function')window.onIdentity(nm,sd);}catch(e){}
+  const go=async()=>{const nm=q('idname').value.replace(/\s+/g,' ').trim(),sd=q('idsid').value.trim();if(nm.length<3){q('iderr').textContent='กรอกยศ ชื่อ-สกุล';return;}if(!sd&&!CFG.demo){q('iderr').textContent='กรอกเลขที่';return;}
+    lsS('lnav-name',nm);lsS('lnav-sid',sd||(CFG.demo?'-':''));try{if(typeof window.onIdentity==='function')window.onIdentity(nm,sd);}catch(e){}
     q('idgo').disabled=true;q('idgo').textContent='กำลังตรวจผลเดิม…';const ok=await restoreFromServer(nm,sd,true);g.remove();
     toast(ok?`ยินดีต้อนรับ ${esc(nm)} · ดึงผลการฝึกเดิมกลับมาแล้ว ✓`:`ยินดีต้อนรับ ${esc(nm)}`);};
   q('idgo').onclick=go;q('idsid').addEventListener('keydown',e=>{if(e.key==='Enter')go();});q('idname').addEventListener('keydown',e=>{if(e.key==='Enter')q('idsid').focus();});}
@@ -707,6 +711,33 @@ function idGate(){if(!CFG.web||lsG('lnav-name').trim())return;if(document.getEle
 
 const roomOK=()=>!(CFG.web&&netURL())||ROOM.state==='open'||ROOM.state==='none'||ROOM.state==='';
 if(CFG.web)setTimeout(roomInit,0);
+
+/* ---------- presence: tell the sheet this device is online and what it is doing (ping every 45 s) ---------- */
+const DEV=(()=>{let d=lsG('lnav-dev');if(!d){d=Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4);lsS('lnav-dev',d);}return d;})();
+function pageLabel(){return(window.APPKIND==='game'?'เกม':'ฝึก')+' · '+(CFG.demo?'Demo':CFG.short?'ย่อ':'เต็ม');}
+function presPing(bye){const u=netURL();if(!CFG.web||!u||(navigator.onLine===false))return;
+  const p={kind:'ping',dev:DEV,page:pageLabel(),act:String(window.LNAV_ACT||''),name:lsG('lnav-name'),sid:lsG('lnav-sid'),room:(ROOM.state==='open'?ROOM.code:'')||'',demo:!!CFG.demo,bye:!!bye,at:Date.now()};
+  const body=JSON.stringify(p);
+  try{if(bye&&navigator.sendBeacon){navigator.sendBeacon(u,new Blob([body],{type:'text/plain;charset=utf-8'}));return;}
+    fetch(u,{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'text/plain;charset=utf-8'},body}).catch(()=>{});}catch(e){}}
+if(CFG.web){setTimeout(()=>presPing(),4000);setInterval(()=>{if(!document.hidden)presPing();},45000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)presPing();});window.addEventListener('pagehide',()=>presPing(true));}
+
+/* ---------- demo build: "play the full version?" question after the last demo task ---------- */
+const demoKey=()=>'lnav-demoask-'+(window.APPKIND||'app');
+function demoAsked(){return lsG(demoKey());}
+function demoAsk(sum,force){if(!CFG.demo)return;if(!force&&demoAsked())return;if(document.getElementById('demoask'))return;roomStyle();
+  const g=document.createElement('div');g.id='roomgate';g.className='idgate';g.setAttribute('role','dialog');g.setAttribute('aria-modal','true');
+  g.innerHTML=`<div class="rg" id="demoask"><div class="big">🎖️</div><h2>จบการทดลองเล่นแล้ว</h2><p>${esc(sum||'')}</p><p style="font-size:17px;font-weight:600">ต้องการเล่นเวอร์ชันเต็มไหม?</p>
+    <p style="font-size:13.5px;opacity:.85">เวอร์ชันเต็ม: ครบทุกโมดูล/ภารกิจ มีห้องเรียนและตารางอันดับ</p>
+    <textarea id="dmnote" maxlength="300" rows="2" placeholder="ความเห็นเพิ่มเติม (ไม่บังคับ)" style="width:100%;box-sizing:border-box;border-radius:10px;padding:8px;font:500 15px 'IBM Plex Sans Thai',sans-serif"></textarea>
+    <button class="go" id="dmyes">ต้องการเล่นเวอร์ชันเต็ม</button><button id="dmno">ยังไม่ต้องการ</button><button id="dmlater">ดูผลก่อน</button><div class="err" id="dmmsg"></div></div>`;
+  document.body.appendChild(g);const q=id=>document.getElementById(id);
+  const answer=want=>{lsS(demoKey(),want);q('dmyes').disabled=q('dmno').disabled=true;
+    netSend({key:'fb-'+(window.APPKIND||'app'),kind:'demofb',app:window.APPKIND||'app',want,note:q('dmnote').value.trim(),name:lsG('lnav-name').trim()||'-',sid:lsG('lnav-sid').trim(),score:sum||'',at:Date.now()});
+    if(want==='yes'){q('demoask').innerHTML='<div class="big">✅</div><h2>บันทึกความสนใจแล้ว</h2><p>ครูฝึกจะเห็นว่าคุณต้องการเวอร์ชันเต็ม</p><a class="go" style="display:block;text-align:center;text-decoration:none" href="./">ไปหน้าเวอร์ชันเต็ม</a><button id="dmx">ปิด</button>';q('dmx').onclick=()=>g.remove();}
+    else g.remove();};
+  q('dmyes').onclick=()=>answer('yes');q('dmno').onclick=()=>answer('no');q('dmlater').onclick=()=>g.remove();}
 
 /* ---------- route lines: SP -> pin 1 -> pin 2 ... (pencil lines that follow the pins) ---------- */
 const ROUTE={on:false};

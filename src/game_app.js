@@ -13,6 +13,7 @@ $('#vMap').onclick=()=>setStageView('map',true);$('#vComp').onclick=()=>setStage
 const GS={code:'ALPHA-01',sound:true,db:null,uid:null,writeOK:null,board:null,boardErr:'',tab:'camp'};
 function loadLocal(){try{return JSON.parse(localStorage.getItem(CFG.short?'opcompass-s1':'opcompass-v1')||'{}')||{};}catch(e){return{};}}
 GS.st=Object.assign({callsign:'',levels:{},so:{}},loadLocal());
+try{if(!GS.st.callsign&&localStorage.getItem('lnav-name')){GS.st.callsign=localStorage.getItem('lnav-name').slice(0,40);GS.st.sid=(localStorage.getItem('lnav-sid')||'').slice(0,20);}}catch(e){} // identity already given on another page
 try{if(!GS.st.callsign)GS.st.callsign=(localStorage.getItem('lnav-name')||'').slice(0,40);if(!GS.st.sid)GS.st.sid=(localStorage.getItem('lnav-sid')||'').slice(0,20);}catch(e){}
 function saveLocal(){try{localStorage.setItem(CFG.short?'opcompass-s1':'opcompass-v1',JSON.stringify(GS.st));}catch(e){}}
 let writeChain=Promise.resolve();
@@ -63,7 +64,7 @@ function levelSession(idx){let done=false;const S={pts:0,combo:0,idx,
   end(bonus){if(done)return;done=true;S.over=true;stopTimer();tapHandler=null;setStageView('map',false);finishLevel(idx,S.pts+(bonus||0),S.extra||'');}};return S;}
 function finishLevel(idx,raw,extra){const L=LEVELS[idx],score=clamp(Math.round(raw),0,100),stars=starsOf(score);
   const prevBest=GS.st.levels[L.id]||0,prevRank=cleared();if(score>prevBest)GS.st.levels[L.id]=score;saveLocal();
-  const nowRank=cleared(),promoted=nowRank>prevRank;renderRankChip();saveRemote();gameSubmit();sfx(stars?'win':'bad');
+  const nowRank=cleared(),promoted=nowRank>prevRank;renderRankChip();saveRemote();gameSubmit();demoCheck();sfx(stars?'win':'bad');
   const next=idx+1<LEVELS.length&&unlocked(idx+1);
   setSheet(`<div class="result"><div class="eyebrow">ภารกิจ ${idx+1} · ${esc(L.name)}</div>
     <div class="bigstars">${[0,1,2].map(k=>k<stars?'<b>★</b>':'<i>★</i>').join('')}</div>
@@ -73,7 +74,7 @@ function finishLevel(idx,raw,extra){const L=LEVELS[idx],score=clamp(Math.round(r
     ${extra?`<div style="text-align:left">${extra}</div>`:''}
     <div class="row" style="justify-content:center"><button class="btn" id="again">เล่นอีกครั้ง</button>${next?'<button class="btn primary" id="nxt">ภารกิจถัดไป</button>':''}<button class="btn" id="home">แผนที่ภารกิจ</button></div></div>`);
   on('again',()=>startLevel(idx));on('nxt',()=>startLevel(idx+1));on('home',()=>setTab('camp'));}
-function startLevel(i){O={};tapHandler=null;stopTimer();DRAW.on=false;resetCompass({mode:'top'});setStageView('map',false);LEVELS[i].run(levelSession(i),LEVELS[i]);requestDraw();}
+function startLevel(i){window.LNAV_ACT='ภารกิจ '+(i+1)+' '+LEVELS[i].name;O={};tapHandler=null;stopTimer();DRAW.on=false;resetCompass({mode:'top'});setStageView('map',false);LEVELS[i].run(levelSession(i),LEVELS[i]);requestDraw();}
 
 /* L1 symbols speed round */
 function runL1(S,L){const qs=mapQuestions(5,2,3,2);const limit=100;let i=0;const left=startTimer(limit,()=>S.end(0));
@@ -259,10 +260,10 @@ const LEVELS=[
   {id:'L7',name:'วัดมุมวัดระยะ',sub:'ขีดเส้นดินสอ แผ่นวัดมุม ขอบเข็มทิศ',run:runL7},
   {id:'L12',name:'หาที่อยู่ตนเอง',sub:'อ่านภูเขา เล็ง สกัดกลับ 1 · 2 · 3 ที่หมาย',run:runFix},
   {id:'L8',name:'ลาดตระเวน',sub:'นับก้าว เดินตามมุม หา 2 จุดตรวจ',run:runL8},
-].filter(L=>!CFG.short||['L1','L2','L4','L5','L7','L12','L8'].includes(L.id));
+].filter(L=>CFG.demo?['L1','L2','L4'].includes(L.id):!CFG.short||['L1','L2','L4','L5','L7','L12','L8'].includes(L.id));
 
 /* ---------- screens ---------- */
-function showCampaign(){stopTimer();O={};tapHandler=null;setStageView('map',false);fitView();const r=cleared(),nextR=Math.min(r+1,RANKS.length-1),NL=LEVELS.length;
+function showCampaign(){window.LNAV_ACT='เมนูภารกิจ';stopTimer();O={};tapHandler=null;setStageView('map',false);fitView();const r=cleared(),nextR=Math.min(r+1,RANKS.length-1),NL=LEVELS.length;
   setSheet(`<div class="rankcard">${badge(r,54)}<div style="flex:1;min-width:0"><div class="eyebrow">ยศปัจจุบัน</div><div class="big">${RANKS[r]}</div>
     <div class="muted" style="font-size:13px">${r<NL?`ผ่านภารกิจ ${r+1} เพื่อเลื่อนเป็น ${RANKS[nextR]}`:`ผ่านครบทุกภารกิจแล้ว ล่าดาวให้ครบ ${NL*3} ดวง`}</div><div class="meter"><span style="width:${r/NL*100}%"></span></div></div></div>
     <div class="levels">${LEVELS.map((L,i)=>{const b=GS.st.levels[L.id]||0,u=unlocked(i);return`<button class="lv" data-i="${i}" ${u?'':'disabled'}><span class="no">${u?i+1:'<svg width="16" height="18" viewBox="0 0 16 18" aria-label="ล็อก"><rect x="2" y="8" width="12" height="9" rx="2" fill="currentColor"/><path d="M5 8V5.5a3 3 0 0 1 6 0V8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>'}</span><span><span class="nm">${esc(L.name)}</span><span class="sb">${esc(L.sub)}</span></span><span style="text-align:right"><span class="stars">${starStr(starsOf(b))}</span><br><span class="mono muted" style="font-size:12px">${b?b+' คะแนน':''}</span></span></button>`;}).join('')}</div>
@@ -275,7 +276,7 @@ function makeFlags(sp){const r=mulberry32(hashStr(GS.code+'#scoreo'));const fl=[
     let pts=d<1500?10:d<2500?20:30;if(W.isForest(x,y))pts+=10;fl.push({x,y,pts});}
   fl.sort((a,b)=>a.pts-b.pts);return fl.map((f,k)=>({...f,label:'ธง '+String.fromCharCode(65+k)}));}
 function scoreOStart(){const r=mulberry32(hashStr(GS.code+'#start'));for(let i=0;i<200;i++){const p={x:SC*2500+r()*SC*3000,y:SC*2500+r()*SC*3000};if(landOK(p.x,p.y)&&W.roadDist(p.x,p.y)<80)return p;}return{x:MAP/2,y:MAP/2};}
-function showScoreO(){stopTimer();O={};tapHandler=null;setStageView('map',false);const sp=scoreOStart(),fl=makeFlags(sp);const best=GS.st.so[GS.code];
+function showScoreO(){window.LNAV_ACT='Score-O';stopTimer();O={};tapHandler=null;setStageView('map',false);const sp=scoreOStart(),fl=makeFlags(sp);const best=GS.st.so[GS.code];
   O={marks:[{x:sp.x,y:sp.y,kind:'sp',label:'เริ่ม/เส้นชัย'}]};setView(sp.x,sp.y,0.08);
   setSheet(`<div class="eyebrow">โหมดแข่งขัน · รหัส ${esc(GS.code)}</div><h2>Score-O ล่าธง</h2>
     <p>ธง ${fl.length} ผืนซ่อนอยู่ในพื้นที่ แต่ละผืนมีแต้ม 10-40 ตามความไกลและความยาก มีเวลา <b>${SOLIM} นาที</b> (เวลาในเกม) เลือกเก็บธงลำดับไหนก็ได้แล้วกลับเส้นชัย</p>
@@ -300,6 +301,8 @@ function gameCode(){const g=gameSum(),cl=v=>String(v||'').replace(/[|\n\r#,:]/g,
   const body=`OC2|${CFG.short?'S':'F'}|${cl(GS.st.callsign)}|${cl(GS.st.sid)}|${g.stars}|${g.cl}|${so}|${Math.floor(Date.now()/1000).toString(36)}`;return body+'|'+hashS(body);}
 function gamePayload(){const g=gameSum();return{key:'game-'+(CFG.short?'S':'F'),kind:'game',set:CFG.short?'S':'F',setName:GSET,name:String(GS.st.callsign||'').trim(),sid:String(GS.st.sid||'').trim(),code:GS.code,score:g.got,total:g.tot,cleared:g.cl,levels:LEVELS.length,stars:g.stars,starsMax:LEVELS.length*3,so:g.so,lv:GS.st.levels,soAll:GS.st.so,chk:gameCode(),at:Date.now()};}
 window.APPKIND='game';
+function demoSum(){const g=gameSum();return`เกม Demo ได้ ${g.got}/${g.tot} คะแนน · ผ่าน ${g.cl}/${LEVELS.length} ภารกิจ`;}
+function demoCheck(){if(!CFG.demo)return;if(LEVELS.every(l=>GS.st.levels[l.id]!==undefined))setTimeout(()=>demoAsk(demoSum()),2200);}
 window.onRoomJoin=()=>{if(Object.keys(GS.st.levels||{}).length)gameSubmit();};
 window.onIdentity=(nm,sd)=>{GS.st.callsign=nm.slice(0,40);GS.st.sid=sd.slice(0,20);saveLocal();try{renderRankChip();}catch(e){}if(GS.tab==='lb')showBoard();};
 window.onRestore=d=>{let n=0;const lv=d&&d.lv||{};for(const k of Object.keys(lv)){const v=Math.min(100,+lv[k]||0);if(v>(GS.st.levels[k]||0)){GS.st.levels[k]=v;n++;}}
@@ -308,7 +311,7 @@ window.onRestore=d=>{let n=0;const lv=d&&d.lv||{};for(const k of Object.keys(lv)
 function gameSubmit(){if(!CFG.web||!String(GS.st.callsign||'').trim())return;netSend(gamePayload());}
 window.onNetStatus=()=>{const el=document.getElementById('netst');if(el)el.textContent=netText();};
 GS.webBoard=null;
-function fetchWebBoard(){const u=netURL();if(!CFG.web||!u)return;getJSON(u+'?action=board&set='+(CFG.short?'S':'F')+(ROOM.code&&ROOM.state==='open'?'&room='+encodeURIComponent(ROOM.code):'')).then(j=>{if(!j||!Array.isArray(j.rows))return;
+function fetchWebBoard(){const u=netURL();if(CFG.demo||!CFG.web||!u)return;getJSON(u+'?action=board&set='+(CFG.short?'S':'F')+(ROOM.code&&ROOM.state==='open'?'&room='+encodeURIComponent(ROOM.code):'')).then(j=>{if(!j||!Array.isArray(j.rows))return;
   GS.webBoard=j.rows.map(r=>({id:'w-'+(r.sid||'')+r.name,callsign:r.name,stars:+r.stars||0,cleared:+r.cleared||0,at:0,so:r.code&&r.so?{[r.code]:{pts:+r.so,time:'',flags:''}}:{}}));renderBoard();}).catch(()=>{});}
 function gameFormURL(){const F=CFG.form;if(!F||!F.url)return'';const g=gameSum();
   const v={name:GS.st.callsign||'',sid:GS.st.sid||'',set:GSET,code:GS.code,score:g.got,total:g.tot,passed:`${g.cl}/${LEVELS.length}`,stars:`${g.stars}/${LEVELS.length*3}`,so:g.so,chk:gameCode()};
@@ -319,14 +322,15 @@ function renderBoard(){const el=$('#boardbox');if(!el)return;const rows=boardRow
   const nm=r=>r.callsign?esc(r.callsign):'<span class="muted">ไม่ระบุชื่อ</span>';
   el.innerHTML=`<h3>แคมเปญ · ดาวสะสม</h3><div class="wrapx"><table><tr><th>#</th><th>ชื่อเรียกขาน</th><th>ยศ</th><th>ดาว</th></tr>${camp.length?camp.slice(0,50).map((r,i)=>`<tr class="${r.id===me?'me':''}"><td class="mono">${i+1}</td><td>${nm(r)}</td><td>${RANKS[clamp(r.cleared||0,0,RANKS.length-1)]}</td><td class="mono" style="color:var(--star)">★ ${r.stars||0}</td></tr>`).join(''):'<tr><td colspan="4" class="muted">ยังไม่มีใครผ่านภารกิจ เล่นภารกิจ 1 เพื่อขึ้นตาราง</td></tr>'}</table></div>
     <h3>Score-O · รหัส ${esc(GS.code)}</h3><div class="wrapx"><table><tr><th>#</th><th>ชื่อเรียกขาน</th><th>คะแนน</th><th>เวลา</th><th>ธง</th></tr>${so.length?so.slice(0,50).map((r,i)=>{const s=r.so[GS.code];return`<tr class="${r.id===me?'me':''}"><td class="mono">${i+1}</td><td>${nm(r)}</td><td class="mono" style="color:var(--accent)">${s.pts}</td><td class="mono">${s.time} น.</td><td class="mono">${s.flags||0}</td></tr>`;}).join(''):'<tr><td colspan="5" class="muted">ยังไม่มีผลแข่งสำหรับรหัสนี้</td></tr>'}</table></div>`;}
-function showBoard(){stopTimer();O={};tapHandler=null;setStageView('map',false);fitView();
+function showBoard(){window.LNAV_ACT='ส่งคะแนน/อันดับ';stopTimer();O={};tapHandler=null;setStageView('map',false);fitView();
   const status=CFG.web?(netURL()?'ตารางอันดับรวมจาก Google Sheet ของครูฝึก (อัปเดตเมื่อเปิดหน้านี้)':'ด้านล่างคือคะแนนของคุณในเครื่องนี้'):!GS.db||!GS.uid?'ตารางอันดับออนไลน์ใช้ได้เฉพาะผู้ที่เข้าสู่ระบบ ด้านล่างคือคะแนนของคุณในเครื่องนี้':GS.writeOK===false?'คุณดูอันดับได้ แต่คะแนนของคุณส่งขึ้นตารางออนไลน์ไม่ได้ ใช้ปุ่มส่งคะแนนด้านบนแทน':GS.board?'อัปเดตสด · คะแนนส่งขึ้นตารางอัตโนมัติเมื่อจบภารกิจ':'กำลังโหลดตารางอันดับ…';
   setSheet(`<div class="eyebrow">ตารางอันดับ</div><h2>ใครเก่งที่สุดในหน่วย</h2>
     <div class="row"><div class="field"><label for="cs">ยศ ชื่อ-สกุล (แสดงบนตาราง)</label><input id="cs" maxlength="40" value="${esc(GS.st.callsign||'')}" style="font-family:var(--f-body)" placeholder="เช่น ร.ต.สมชาย ใจดี"></div><div class="field" style="flex:0 1 120px"><label for="sid">เลขที่</label><input id="sid" maxlength="20" value="${esc(GS.st.sid||'')}"></div><button class="btn primary" id="cssave">บันทึก</button></div>
     <div class="fb"><b>ส่งคะแนนให้ครูฝึก</b> · คะแนนรวม <span class="mono">${gameSum().got}/${gameSum().tot}</span> (${Math.round(gameSum().got/gameSum().tot*1000)/10}%) · ผ่าน ${gameSum().cl}/${LEVELS.length} ภารกิจ · ★ ${gameSum().stars}${gameSum().so?' · Score-O '+gameSum().so:''}
-      ${CFG.web?`<div class="tools" style="margin-top:6px"><button class="btn primary" id="websend">ส่งคะแนนตอนนี้</button></div><span class="muted" id="netst" style="font-size:12.5px">${esc(netText())}</span></div>`:`<div class="tools" style="margin-top:6px"><a class="btn primary" id="formgo" href="#" target="_blank" rel="noopener" style="text-decoration:none">ส่งคะแนน (Google Form)</a></div>
+      ${CFG.web?`<div class="tools" style="margin-top:6px"><button class="btn primary" id="websend">ส่งคะแนนตอนนี้</button>${CFG.demo?'<button class="btn" id="dmfull">เล่นเวอร์ชันเต็มไหม?</button>':''}</div><span class="muted" id="netst" style="font-size:12.5px">${esc(netText())}</span></div>`:`<div class="tools" style="margin-top:6px"><a class="btn primary" id="formgo" href="#" target="_blank" rel="noopener" style="text-decoration:none">ส่งคะแนน (Google Form)</a></div>
       <span class="muted" id="sharemsg" style="font-size:12.5px">${CFG.form&&CFG.form.url?'เปิดแบบฟอร์มที่กรอกคะแนนไว้ให้แล้ว เลื่อนลงกด "ส่ง" ได้เลย ไม่ต้องแก้ไขข้อมูล':'ครูฝึกยังไม่ได้ตั้งค่า Google Form · แคปหน้าจอนี้ส่งครูฝึกแทน'}</span></div>`}
     <p class="muted" style="font-size:13px">${status}</p><div id="boardbox"></div>`);
+  on('dmfull',()=>demoAsk(demoSum(),true));
   if(CFG.web){on('websend',()=>{if(!String(GS.st.callsign||'').trim()){$('#netst').textContent='กรอกยศ ชื่อ-สกุล แล้วกดบันทึกก่อนส่งคะแนน';return;}$('#netst').textContent='กำลังส่ง…';gameSubmit();});fetchWebBoard();}
   else{const fg=$('#formgo');fg.addEventListener('click',e=>{if(!String(GS.st.callsign||'').trim()){e.preventDefault();$('#sharemsg').textContent='กรอกยศ ชื่อ-สกุล แล้วกดบันทึกก่อนส่งคะแนน';return;}const u=gameFormURL();if(!u){e.preventDefault();return;}fg.href=u;});}
   on('cssave',()=>{GS.st.callsign=val('cs').trim().slice(0,40);GS.st.sid=val('sid').trim().slice(0,20);saveLocal();try{if(GS.st.callsign)localStorage.setItem('lnav-name',GS.st.callsign);if(GS.st.sid)localStorage.setItem('lnav-sid',GS.st.sid);}catch(e){}saveRemote();gameSubmit();showBoard();const b=$('#cssave');b.textContent='บันทึกแล้ว';setTimeout(()=>{if(b.isConnected)b.textContent='บันทึก';},1500);});renderBoard();}
@@ -340,7 +344,7 @@ function showHelp(){stopTimer();O={};tapHandler=null;setStageView('map',false);f
     <h3>สูตรลัด</h3><ul style="padding-left:20px;font-size:14px"><li>มุมกลับ: น้อยกว่า 180° บวก 180° · มากกว่าหรือเท่ากับ 180° ลบ 180°</li><li>1 ช่องกริด = 1 กม. · พิกัด 6 หลัก = 100 ม. · 8 หลัก = 10 ม.</li><li>คลาด 1° ≈ ออกทิศ 17 ม. ต่อระยะ 1 กม.</li></ul>`);
   sheet.querySelectorAll('.legend canvas').forEach(cv=>drawLeg(cv,cv.dataset.k));}
 
-const TABS=[['camp','แคมเปญ',showCampaign],['so','Score-O',showScoreO],['lb','ส่งคะแนน/อันดับ',showBoard],['help','วิธีเล่น',showHelp]];
+const TABS=[['camp','แคมเปญ',showCampaign],['so','Score-O',showScoreO],['lb','ส่งคะแนน/อันดับ',showBoard],['help','วิธีเล่น',showHelp]].filter(t=>!CFG.demo||t[0]!=='so'); // demo has no Score-O
 function setTab(t){GS.tab=t;$('#tabs').innerHTML=TABS.map(([id,n])=>`<button class="tab" role="tab" data-t="${id}" aria-selected="${id===t}">${n}</button>`).join('');
   $('#tabs').querySelectorAll('.tab').forEach(b=>b.onclick=()=>setTab(b.dataset.t));(TABS.find(x=>x[0]===t)||TABS[0])[2]();requestDraw();}
 function regen(){const c=($('#code').value||'ALPHA-01').trim().toUpperCase().replace(/[^A-Z0-9\-]/g,'')||'ALPHA-01';$('#code').value=c;GS.code=c;try{localStorage.setItem('opcompass-code',c);}catch(e){}genWorld(c);fitView();setTab(GS.tab==='lb'||GS.tab==='help'?GS.tab:GS.tab==='so'?'so':'camp');}

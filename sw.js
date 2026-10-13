@@ -1,7 +1,7 @@
 /* Offline support: pages are fetched from the network first (so updates arrive),
    and served from the cache when there is no signal. Bump VERSION after edits. */
-const VERSION = 'landnav-v23';
-const FILES = ['./', 'index.html', 'practice.html', 'practice-short.html', 'game.html', 'game-short.html',
+const VERSION = 'landnav-v24';
+const FILES = ['./', 'index.html', 'practice.html', 'practice-short.html', 'game.html', 'game-short.html', 'demo-practice.html', 'demo-game.html',
   'poster.html', 'compass.html', 'gesture-compass.html', 'manual.html', 'config.js', 'qr.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

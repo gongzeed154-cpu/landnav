@@ -5,9 +5,10 @@ const PASSAT=(total,full)=>CFG.short?Math.ceil(total*0.8):full;
 function loadStore(){try{return JSON.parse(localStorage.getItem(SKEY)||'{}')||{};}catch(e){return{};}}
 function saveStore(){try{localStorage.setItem(SKEY,JSON.stringify(APP.store));}catch(e){}}
 function rec(mod,score,total,pass){const s=APP.store[APP.code]||(APP.store[APP.code]={});const p=s[mod];if(!p||score/total>=p.score/p.total)s[mod]={score,total,pass:pass||(p&&p.pass)||false,at:Date.now()};else if(pass&&!p.pass)p.pass=true;saveStore();renderTabs();logAttempt(mod,score,total,score>=0&&pass);}
-const MODS=[
+const MODS_ALL=[
   {id:'m1',n:'1',t:'แผนที่และภูมิประเทศ'},{id:'m2',n:'2',t:'อ่านพิกัด'},{id:'m3',n:'3',t:'เข็มทิศเลนเซติก'},{id:'m4',n:'4',t:'มุมภาค-ระยะ'},{id:'m5',n:'5',t:'เดินทางจำลอง'},{id:'m6',n:'6',t:'หาที่อยู่ตนเอง'},
   {id:'res',n:'',t:'ผลการฝึก'},{id:'leg',n:'',t:'ขอบระวาง'}];
+const MODS=CFG.demo?MODS_ALL.filter(m=>['m1','m2','m3','res','leg'].includes(m.id)):MODS_ALL; // demo: map, coordinates, compass only
 function renderTabs(){const s=APP.store[APP.code]||{};$('#tabs').innerHTML=MODS.map(m=>`<button class="tab" role="tab" data-m="${m.id}" aria-selected="${APP.mod===m.id}">${m.n?`<b>${m.n}</b>`:''}${m.t}${s[m.id]&&s[m.id].pass?'<span class="dot" title="ผ่านแล้ว"></span>':''}</button>`).join('');
   $('#tabs').querySelectorAll('.tab').forEach(b=>b.onclick=()=>setModule(b.dataset.m));}
 const sheet=$('#sheet');
@@ -28,7 +29,7 @@ const PROG={cur:null,
   st(def){const c=this.cur;if(!c)return def;if(c.resume&&c.st){Object.assign(def,c.st);c.resumed=true;}c.ref=def;return def;},
   save(){const c=this.cur;if(!c||!c.ref||c.mod!==APP.mod)return;const a=this.all();a[c.mod]={code:c.code,seed:c.seed,retry:c.retry,st:c.ref,at:Date.now()};this.put(a);}};
 const PMODS=['m1','m2','m3','m4','m5','m6'];
-function setModule(m,fresh){APP.mod=m;try{localStorage.setItem(CFG.short?'lnav-smod':'lnav-mod',m);}catch(e){}if(RETRY&&RETRY.mod!==m)RETRY=null;O={};tapHandler=null;DRAW.on=false;resetCompass({mode:'top'});renderTabs();setStageView('map',false);
+function setModule(m,fresh){APP.mod=m;window.LNAV_ACT=m==='res'?'ดูผลการฝึก':m==='leg'?'ดูขอบระวาง':'โมดูล '+m.slice(1)+' '+((MODS.find(x=>x.id===m)||{}).t||'');try{localStorage.setItem(CFG.short?'lnav-smod':'lnav-mod',m);}catch(e){}if(RETRY&&RETRY.mod!==m)RETRY=null;O={};tapHandler=null;DRAW.on=false;resetCompass({mode:'top'});renderTabs();setStageView('map',false);
   let snap=null;if(PMODS.includes(m)){if(fresh)PROG.clear(m);else snap=PROG.get(m);}if(snap&&snap.retry)RETRY=snap.retry;
   const seed=snap?snap.seed:(Date.now()^(Math.random()*4294967296))|0;
   PROG.cur=PMODS.includes(m)?{mod:m,code:APP.code,seed,retry:RETRY&&RETRY.mod===m?JSON.parse(JSON.stringify(RETRY)):null,resume:!!snap,st:snap&&snap.st}:null;
@@ -43,7 +44,7 @@ const progress=(i,n)=>`<div class="prog" aria-hidden="true"><span style="width:$
 let RETRY=null;const takeRetry=mod=>{const r=RETRY&&RETRY.mod===mod?RETRY:null;return r;};
 function finishCard(title,score,total,passAt,mod,extra,wrong){const R=takeRetry(mod);RETRY=null;PROG.clear(mod);
   let note='';if(R){note=`<p class="muted">รอบซ่อม: ทำใหม่ ${R.kinds.length} ข้อ ได้เพิ่ม ${score}/${total} คะแนน · รวมกับที่ได้ไว้ ${R.carry} คะแนน</p>`;score=Math.min(R.total,R.carry+score);total=R.total;passAt=R.passAt;}
-  const pass=score>=passAt;rec(mod,score,total,pass);
+  const pass=score>=passAt;rec(mod,score,total,pass);demoCheck();
   const fix=!pass&&wrong&&wrong.length?`<button class="btn primary" id="fixwrong">ฝึกซ่อมเฉพาะข้อที่ผิด (${wrong.length} ข้อ · สุ่มโจทย์ใหม่)</button>`:'';
   extra=note+(extra||'');
   setSheet(`<div class="eyebrow">${esc(title)}</div><div class="score mono">${score}/${total}</div><p>${pass?'<span class="pill pass">ผ่านเกณฑ์</span>':'<span class="pill fail">ยังไม่ผ่าน</span>'} <span class="muted">เกณฑ์ผ่าน ${passAt}/${total}</span></p>${extra||''}<div class="row">${fix}<button class="btn${fix?'':' primary'}" id="again">${fix?'ทำใหม่ทั้งหมด':'ฝึกอีกครั้ง'}</button><button class="btn" id="tores">ดูผลการฝึกทั้งหมด</button></div>`);
@@ -299,6 +300,8 @@ function resultCode(){const b=bestByModule();const mods=MODN.filter(m=>b[m]).map
 function appPayload(){const{b,got,tot,passed}=scoreSum();const mods={};for(const m of MODN)mods[m]=b[m]?`${b[m].score}/${b[m].total}${b[m].pass?' ผ่าน':''}`:'';
   return{key:'app-'+(CFG.short?'S':'F'),kind:'app',set:CFG.short?'S':'F',setName:SETNAME,name:lsGet('lnav-name','').trim(),sid:lsGet('lnav-sid','').trim(),code:APP.code,score:got,total:tot,passed,mods,chk:resultCode(),at:Date.now()};}
 window.APPKIND='app';
+function demoSum(){const{got,tot}=scoreSum();return`แบบฝึก Demo ได้ ${got}/${tot} คะแนน`;}
+function demoCheck(){if(!CFG.demo)return;const b=bestByModule();if(MODN.every(m=>b[m]))setTimeout(()=>demoAsk(demoSum()),1800);}
 window.onRestore=d=>{if(!d||!d.mods)return 0;const code=String(d.code||APP.code).toUpperCase();const s=APP.store[code]||(APP.store[code]={});let n=0;
   for(const m of MODN){const v=String(d.mods[m]||'');const mt=v.match(/(\d+)\s*\/\s*(\d+)/);if(!mt)continue;const sc=+mt[1],tt=+mt[2],ps=/ผ่าน/.test(v);const p=s[m];
     if(!p||sc/tt>p.score/p.total||(ps&&!p.pass)){s[m]={score:Math.max(sc,p&&p.total===tt?p.score:0),total:tt,pass:ps||(p&&p.pass)||false,at:Date.now()};n++;}}
@@ -319,16 +322,17 @@ MOD.res={start(){fitView();const s=APP.store[APP.code]||{};const name=lsGet('lna
     ${!name?'<div class="fb bad"><strong>กรอกยศ ชื่อ-สกุลก่อนเริ่มฝึก</strong> เพื่อให้ครูฝึกเห็นคะแนนของคุณ</div>':''}
     <div class="row"><div class="field"><label for="nm">ยศ ชื่อ-สกุล ผู้รับการฝึก</label><input id="nm" value="${esc(name)}" style="font-family:var(--f-body)"></div><div class="field" style="flex:0 1 160px"><label for="sid">เลขที่/รหัสประจำตัว</label><input id="sid" value="${esc(sid)}"></div><button class="btn primary" id="nmsave">บันทึก</button></div>
     <div class="wrapx" style="margin-top:10px"><table><tr><th>โมดูล</th><th>คะแนนดีที่สุด</th><th>สถานะ</th></tr>${rows}</table></div>
-    <p>${all?'<span class="pill pass">พร้อมออกภาคสนาม</span>':'<span class="pill">ต้องผ่านครบ 6 โมดูลก่อนออกภาคสนาม</span>'}</p>
+    <p>${all?'<span class="pill pass">พร้อมออกภาคสนาม</span>':'<span class="pill">ต้องผ่านครบ ${MODS.filter(m=>m.n).length} โมดูลก่อนออกภาคสนาม</span>'}</p>
     <p class="muted" id="sync">${syncText()}</p>
     <h3>ส่งคะแนนให้ครูฝึก</h3><p style="font-size:14px">คะแนนรวม <b class="mono">${scoreSum().got}/${scoreSum().tot}</b> (${Math.round(scoreSum().got/scoreSum().tot*1000)/10}%) · ผ่าน ${scoreSum().passed}/6 โมดูล</p>
-    ${CFG.web?`<div class="tools"><button class="btn primary" id="websend">ส่งคะแนนตอนนี้</button></div><p class="muted" id="netst" style="font-size:12.5px">${esc(netText())}</p>`:`<div class="tools"><a class="btn primary" id="formgo" href="#" target="_blank" rel="noopener" style="text-decoration:none">ส่งคะแนน (Google Form)</a></div>
+    ${CFG.web?`<div class="tools"><button class="btn primary" id="websend">ส่งคะแนนตอนนี้</button>${CFG.demo?'<button class="btn" id="dmfull">เล่นเวอร์ชันเต็มไหม?</button>':''}</div><p class="muted" id="netst" style="font-size:12.5px">${esc(netText())}</p>`:`<div class="tools"><a class="btn primary" id="formgo" href="#" target="_blank" rel="noopener" style="text-decoration:none">ส่งคะแนน (Google Form)</a></div>
     <p class="muted" id="sharemsg" style="font-size:12.5px">${CFG.form&&CFG.form.url?'กดแล้วจะเปิดแบบฟอร์มที่กรอกคะแนนไว้ให้แล้ว เลื่อนลงกด "ส่ง" ได้เลย ไม่ต้องแก้ไขข้อมูล · ส่งซ้ำได้ ครูฝึกใช้คะแนนล่าสุด':'ครูฝึกยังไม่ได้ตั้งค่า Google Form · แคปหน้าจอนี้ส่งครูฝึกแทน'}</p>`}`);
+  on('dmfull',()=>demoAsk(demoSum(),true));
   if(CFG.web){on('websend',()=>{if(!lsGet('lnav-name','').trim()){$('#netst').textContent='กรอกยศ ชื่อ-สกุล แล้วกดบันทึกก่อนส่งคะแนน';return;}$('#netst').textContent='กำลังส่ง…';webSubmit();});}else{const fg=$('#formgo');fg.addEventListener('click',e=>{if(!lsGet('lnav-name','').trim()){e.preventDefault();$('#sharemsg').textContent='กรอกยศ ชื่อ-สกุล แล้วกดบันทึกก่อนส่งคะแนน';return;}const u=formURL();if(!u){e.preventDefault();return;}fg.href=u;});}
   on('nmsave',()=>{lsSet('lnav-name',val('nm').trim());lsSet('lnav-sid',val('sid').trim());pushRecord();if(CFG.web)webSubmit();setModule('res');});}};
 
 /* ---------- instructor dashboard (owner only) ---------- */
-const MODN=['m1','m2','m3','m4','m5','m6'];
+const MODN=CFG.demo?['m1','m2','m3']:['m1','m2','m3','m4','m5','m6'];
 function insRows(){return(SYNC.records||[]).filter(r=>r.kind!=='game').map(r=>{const b=r.best||{};const passed=MODN.filter(m=>b[m]&&b[m].pass).length;
   const pct=MODN.reduce((a,m)=>a+(b[m]?b[m].score/b[m].total:0),0)/MODN.length;return{...r,passed,pct};});}
 function csvCell(v){v=String(v==null?'':v);return/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
