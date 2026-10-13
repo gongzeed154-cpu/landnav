@@ -70,6 +70,7 @@ function doGet(e) {
 /* ---------- setup ---------- */
 function setup() {
   ensureSheets_();
+  repairOnline_(); // แก้ชีท 'ออนไลน์' รุ่นแรกที่ชื่อโหมดขึ้น #ERROR!
   writeStats_(SpreadsheetApp.getActive());
   CacheService.getScriptCache().remove('rooms');
   SpreadsheetApp.getActive().toast('พร้อมรับคะแนนแล้ว ต่อไป: ทำให้ใช้งานได้เป็นเว็บแอป', 'ระบบคะแนน', 8);
@@ -513,10 +514,10 @@ function makeOnlineSheet_(ss) {
   sh.getRange('B1').setFormula('=COUNTIF(I' + (ONLINE_HEAD_ROW + 1) + ':I,"ออนไลน์")').setFontWeight('bold').setFontSize(18).setBackground('#cdebd3');
   sh.getRange('A2').setValue('อัปเดตอัตโนมัติเมื่อมีเครื่องส่งสัญญาณ (ไม่เกินทุก 30 วินาที) · "หลุด" = ไม่ส่งสัญญาณเกิน ' + PRESENCE_SEC + ' วินาที (ปิดหน้า/ล็อกจอ/ไม่มีเน็ต)').setFontColor('#666666');
   sh.getRange('A4:B4').setValues([['แยกตามโหมด', 'เครื่อง']]).setFontWeight('bold').setBackground('#2f3d27').setFontColor('#ffffff');
-  var rows = ONLINE_MODES.map(function (m) {
-    return [m, '=COUNTIFS(E' + (ONLINE_HEAD_ROW + 1) + ':E,"' + m + '",I' + (ONLINE_HEAD_ROW + 1) + ':I,"ออนไลน์")'];
-  });
-  sh.getRange(5, 1, rows.length, 2).setFormulas(rows);
+  sh.getRange(5, 1, ONLINE_MODES.length, 1).setValues(ONLINE_MODES.map(function (m) { return [m]; })); // ชื่อโหมดเป็นข้อความ ห้ามใช้ setFormulas
+  sh.getRange(5, 2, ONLINE_MODES.length, 1).setFormulas(ONLINE_MODES.map(function (m) {
+    return ['=COUNTIFS(E' + (ONLINE_HEAD_ROW + 1) + ':E,"' + m + '",I' + (ONLINE_HEAD_ROW + 1) + ':I,"ออนไลน์")'];
+  }));
   var head = ['เครื่อง', 'ยศ ชื่อ-สกุล', 'เลขที่/ติดต่อ', 'ห้อง', 'โหมด', 'กำลังทำ', 'เข้ามาเมื่อ', 'เห็นล่าสุด', 'สถานะ'];
   sh.getRange(ONLINE_HEAD_ROW, 1, 1, head.length).setValues([head]).setFontWeight('bold').setBackground('#2f3d27').setFontColor('#ffffff');
   sh.setFrozenRows(ONLINE_HEAD_ROW);
@@ -570,4 +571,14 @@ function flushPresence_(map) {
   });
   sh.getRange(H + 1, 9, fm.length, 1).setFormulas(fm);
   sh.getRange(H + 1, 7, vals.length, 2).setNumberFormat('HH:mm:ss');
+}
+
+/* ชีท 'ออนไลน์' ที่สร้างไว้แล้ว: เขียนชื่อโหมดและสูตรนับใหม่ให้ถูกต้อง (ปลอดภัย รันซ้ำได้) */
+function repairOnline_() {
+  var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_ONLINE);
+  if (!sh) return;
+  sh.getRange(5, 1, ONLINE_MODES.length, 1).setValues(ONLINE_MODES.map(function (m) { return [m]; }));
+  sh.getRange(5, 2, ONLINE_MODES.length, 1).setFormulas(ONLINE_MODES.map(function (m) {
+    return ['=COUNTIFS(E' + (ONLINE_HEAD_ROW + 1) + ':E,"' + m + '",I' + (ONLINE_HEAD_ROW + 1) + ':I,"ออนไลน์")'];
+  }));
 }
