@@ -580,20 +580,36 @@ function computePano(x,y){
   for(const L of W.landmarks){const d=hyp(L.x-x,L.y-y);if(d<120||d>7000)continue;const az=gridAz({x,y},L);const tgt=(L.top-h0)/d;const a=az*Math.PI/180,sx=Math.sin(a),sy=Math.cos(a);
     let vis=true;for(let s=40;s<d-60;s+=s<1000?25:50){if((W.elev(x+sx*s,y+sy*s)-h0)/s>tgt+0.002){vis=false;break;}}
     lms.push({...L,az,ang:Math.atan(tgt),d,vis});}
-  Object.assign(C,{x,y,h0,far,mid,near,lms});return lms;}
+  /* ground surface seen from here: per 0.25 degree column, stacked visible slices (angle range, colour) from near to far */
+  const GN=1440,gOff=new Int32Array(GN+1),gA0=[],gA1=[],gCol=[],gCls=[],gD=[],LC=[[150,168,92],[56,90,46],[98,132,64],[154,186,92],[104,156,196]],HZ=[204,220,228];
+  for(let k=0;k<GN;k++){gOff[k]=gA0.length;const a=(k+0.5)*0.25*Math.PI/180,sx=Math.sin(a),sy=Math.cos(a);let tTop=-1e9,pa=-1.5708;
+    for(let d=20;d<7000;d+=d<1000?25:d<3000?50:100){const px=x+sx*d,py=y+sy*d,e=W.elev(px,py),t=(e-h0)/d;if(t<=tTop)continue;
+      const ex=W.elev(px+20,py)-W.elev(px-20,py),ey=W.elev(px,py+20)-W.elev(px,py-20),gx=ex/40*1.7,gy=ey/40*1.7,sh=clamp((-gx*-0.55-gy*0.55+0.63)/Math.sqrt(gx*gx+gy*gy+1)/0.63,0.35,1.3);
+      const cls=W.isWater(px,py)?4:W.vegAt(px,py),base=LC[cls]||LC[0],m=0.55+0.45*sh,hz=Math.min(0.88,1-Math.exp(-d/5200)),n=1+(((Math.imul(Math.floor(px/70)*73856093^Math.floor(py/70)*19349663,2654435761)>>>8)&255)/255-0.5)*0.16;
+      const rgb=[0,1,2].map(i=>Math.round(clamp((base[i]*m*n)*(1-hz)+HZ[i]*hz,0,255)));
+      const ang=Math.atan(t);gA0.push(pa);gA1.push(ang);gCol.push('rgb('+rgb+')');gCls.push(cls);gD.push(d);pa=ang;tTop=t;}}
+  gOff[GN]=gA0.length;
+  const bld=[];for(const b of W.buildings){const d=hyp(b.x-x,b.y-y);if(d<60||d>2600)continue;const az=gridAz({x,y},b),tg=(W.elev(b.x,b.y)+4-h0)/d,ar=az*Math.PI/180,sx=Math.sin(ar),sy=Math.cos(ar);let vis=true;
+    for(let s=30;s<d-30;s+=s<1000?25:50){if((W.elev(x+sx*s,y+sy*s)-h0)/s>tg){vis=false;break;}}if(vis)bld.push({az,d,ang:Math.atan((W.elev(b.x,b.y)-h0)/d),w:b.w,h:b.h});}
+  Object.assign(C,{x,y,h0,far,mid,near,lms,gOff,gA0,gA1,gCol,gCls,gD,bld});return lms;}
 const interpH=(arr,az)=>{const f=wrap360(az)*2,i=Math.floor(f)%720,j=(i+1)%720,t=f-Math.floor(f);return arr[i]*(1-t)+arr[j]*t;};
 const magHeading=()=>wrap360(C.heading-W.gmDeg);
 function stepCard(){const tgt=magHeading();const d=angDiff(tgt,C.disp);C.vel=C.vel*0.8+d*0.07;C.disp=wrap360(C.disp+C.vel);return Math.abs(d)>0.02||Math.abs(C.vel)>0.02;}
 let ACx=null;function clickSnd(){try{ACx=ACx||new(window.AudioContext||window.webkitAudioContext)();const o=ACx.createOscillator(),g=ACx.createGain();o.type='square';o.frequency.value=2400;g.gain.setValueAtTime(0.05,ACx.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,ACx.currentTime+0.03);o.connect(g);g.connect(ACx.destination);o.start();o.stop(ACx.currentTime+0.04);}catch(e){}}
 function drawPano(){
   const c=panoX,w=panoC.clientWidth,h=panoC.clientHeight;if(!w||!C.far)return;c.setTransform(DPR,0,0,DPR,0,0);
-  const ppd=w/PV.fov,y0=h*0.6+PV.pitch*ppd; // gesture prototype: zoom (field of view) and look up/down (pitch)
+  const ppd=w/PV.fov,y0=h*0.6+PV.pitch*ppd;const VEX=1; // gesture prototype: zoom (field of view) and look up/down (pitch)
   const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#7fb0d4');g.addColorStop(.6,'#d8e6ec');g.addColorStop(1,'#d8e6ec');c.fillStyle=g;c.fillRect(0,0,w,h);
   if(!C.night){c.save();for(const[caz,cy,cs]of[[20,.14,1],[85,.09,.8],[150,.19,1.2],[215,.11,.9],[275,.17,1.1],[330,.08,.7]])for(let q=0;q<5;q++){const px=w/2+angDiff(caz+q*2.3,C.heading)*ppd;if(px<-60||px>w+60)continue;c.fillStyle='rgba(255,255,255,'+(q===2?.55:.4)+')';c.beginPath();c.ellipse(px,h*cy+(q%2)*4,(16+(q===2?10:0))*cs*(ppd/6),(6+(q===2?3:0))*cs,0,0,7);c.fill();}c.restore();}
   const layer=(arr,col)=>{c.fillStyle=col;c.beginPath();c.moveTo(0,h);for(let px=0;px<=w;px+=2){const az=C.heading+(px-w/2)/ppd;const yy=y0-interpH(arr,az)*180/Math.PI*ppd;c.lineTo(px,yy);}c.lineTo(w,h);c.closePath();c.fill();};
-  layer(C.far,'#a3b5a6');if(C.mid)layer(C.mid,'#7d9672');layer(C.near,'#5c7150');
-  {const VX=typeof VEX==='number'?VEX:1;c.fillStyle='#4f6746';c.beginPath(); // ragged canopy along the near ridge
-   for(let px=0;px<=w;px+=4){const az=C.heading+(px-w/2)/ppd,yy=y0-interpH(C.near,az)*180/Math.PI*ppd*VX,hs=Math.abs(Math.sin(Math.floor(az*7)*12.9898)*43758.5453)%1;if(yy>h-8)continue;c.moveTo(px+2.5+hs*1.5,yy+1);c.arc(px,yy+1,2+hs*2.6,0,Math.PI,true);}c.fill();
+  {const A=180/Math.PI,Y=a=>y0-a*A*ppd*VEX,gs=C.gOff;
+   for(let px=0;px<w;px+=2){const az=wrap360(C.heading+(px+1-w/2)/ppd),k=Math.min(1439,Math.floor(az*4));
+    for(let q=gs[k+1]-1;q>=gs[k];q--){const y1=Y(C.gA1[q]),y2=Math.min(h,Y(C.gA0[q]));if(y2<0||y1>h||y2<y1)continue;c.fillStyle=C.gCol[q];c.fillRect(px,y1,2,y2-y1+0.8);
+     if(C.gCls[q]===1&&C.gD[q]<2500){const hs=((Math.imul(k*13+q,2246822519)>>>8)&255)/255;if(hs<0.3){const r=Math.max(1.2,Math.min(9,4.5/C.gD[q]*A*ppd*Math.min(VEX,2)));c.fillStyle=hs<0.15?'rgba(30,58,28,.85)':'rgba(70,108,52,.85)';c.beginPath();c.ellipse(px+1,y1-r*0.3,r*0.6,r*0.9,0,0,7);c.fill();}}}}
+   for(const b of C.bld.slice().sort((p,q)=>q.d-p.d)){const px=w/2+angDiff(b.az,C.heading)*ppd;if(px<-20||px>w+20)continue;const bw=Math.max(2,b.w/b.d*A*ppd),bh=Math.max(2,b.h*0.6/b.d*A*ppd*Math.min(VEX,2.5)),py=Y(b.ang);
+    c.fillStyle='#d9cfba';c.fillRect(px-bw/2,py-bh,bw,bh);c.fillStyle='#8a4b34';c.beginPath();c.moveTo(px-bw/2-1,py-bh);c.lineTo(px,py-bh-bh*0.55);c.lineTo(px+bw/2+1,py-bh);c.closePath();c.fill();}
+  }
+    {
    const hz=c.createLinearGradient(0,y0-h*0.45,0,y0+h*0.08);hz.addColorStop(0,'rgba(216,230,236,0)');hz.addColorStop(1,'rgba(216,230,236,.28)');c.fillStyle=hz;c.fillRect(0,y0-h*0.45,w,h*0.53);} // haze at the horizon
   for(const L of C.lms){if(!L.vis)continue;const da=angDiff(L.az,C.heading);if(Math.abs(da)>PV.fov/2+3)continue;const px=w/2+da*ppd,py=y0-L.ang*180/Math.PI*ppd;
     c.save();c.strokeStyle='#1d1d1d';c.fillStyle='#1d1d1d';c.lineWidth=1.4;
