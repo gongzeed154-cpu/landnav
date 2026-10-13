@@ -1,17 +1,17 @@
 # CLAUDE.md — Land navigation trainer (map & lensatic compass)
 
-Static web app (no framework, no npm) for RTAF survival training. Thai UI. Four pages built from shared sources:
-practice (6 modules) and game (12 levels + Score-O), each in a full and a 30-minute short variant.
+Static web app (no framework, no npm) for RTAF survival training. Thai UI. Six pages built from shared sources:
+practice (6 modules) and game (12 levels + Score-O), each in a full and a 30-minute short variant, plus two Demo pages (`demo-practice.html`, `demo-game.html`).
 Scores are POSTed to a Google Apps Script web app that writes to a Google Sheet.
 
 ## Build
 
 ```
-python3 tools/build.py        # writes practice.html, practice-short.html, game.html, game-short.html
+python3 tools/build.py        # writes practice, practice-short, game, game-short, demo-practice, demo-game (.html)
 python3 -m http.server 8000   # then open http://localhost:8000/
 ```
 
-Never edit the four generated `*.html` pages by hand — edit `src/` and rebuild.
+Never edit the six generated `*.html` pages by hand — edit `src/` and rebuild.
 `index.html`, `poster.html`, `config.js`, `sw.js`, `qr.js` are hand-written and edited directly.
 After any change that ships, bump `VERSION` in `sw.js` so phones fetch the new files.
 
@@ -71,3 +71,10 @@ After any change that ships, bump `VERSION` in `sw.js` so phones fetch the new f
 - For the score path, point `config.js` at a local mock (any server that accepts POST and answers `GET ?action=board` with `{"ok":true,"rows":[…]}`), or deploy Code.gs to a test sheet.
 - Code.gs can be exercised in Node with small mocks of `SpreadsheetApp`, `LockService`, `ContentService`.
 - QR generator `qr.js` (byte mode, ECC M, v1–10): verify changes by decoding output (e.g. OpenCV `QRCodeDetector`).
+
+## Demo build and online presence
+
+- `CFG.demo` (build.py, short variant + `demo:true`): no room gate (`roomInit` only runs `idGate`), name + optional contact, own storage (a `localStorage` shim at the top of `src/core.js` prefixes every key with `demo:`), practice limited to m1–m3, game to L1 L2 L4 (no Score-O, no leaderboard). `netSend` adds `demo:true` and key `demo-…`; Code.gs `record_` routes `d.demo` to `recordDemo_` → sheet `ทดลองเล่น (Demo)` (upsert by name+contact+type, best score kept).
+- After the last demo module/level `demoCheck()` → `demoAsk()` asks "play the full version?" and sends `kind:'demofb'` (`want: yes|no`, note) into the same row; also reachable from the "เล่นเวอร์ชันเต็มไหม?" button. Answer remembered per app in `lnav-demoask-<app|game>`.
+- Presence: every page (`CFG.web`) POSTs `{kind:'ping',dev,page,act,name,sid,room,demo}` every 45 s (and `bye` on pagehide via sendBeacon). `window.LNAV_ACT` holds what the user is doing (set in `setModule`/`startLevel`/`show*`). Code.gs `presence_` keeps the map in CacheService (`pres`) and `flushPresence_` rewrites sheet `ออนไลน์` at most every 30 s (counts per mode at the top, device table from row 13, status formula = online if last seen < `PRESENCE_SEC`). Pings skip `ensureSheets_` and the room check.
+- After pasting a new Code.gs run `setup()` once (creates the two new sheets) and make a new version on both deployments.

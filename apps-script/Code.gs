@@ -23,6 +23,9 @@ var SHEET_GAME = 'สรุป-เกม';
 var SHEET_LOG = 'บันทึกทั้งหมด';
 var SHEET_STAT = 'ภาพรวม';
 var SHEET_ROOM = 'ห้องเรียน';
+var SHEET_DEMO = 'ทดลองเล่น (Demo)';
+var SHEET_ONLINE = 'ออนไลน์';
+var PRESENCE_SEC = 120; // ไม่ส่งสัญญาณเกินนี้ = หลุด
 var GRACE_MIN = 15; // รับคะแนนที่ส่งช้าหลังปิดห้องได้อีกกี่นาที (กรณีเน็ตหลุดตอนท้ายคาบ)
 
 var HEAD_APP = ['ห้อง', 'เลขที่', 'ยศ ชื่อ-สกุล', 'ชุด', 'คะแนน', 'คะแนนเต็ม', 'ร้อยละ', 'ผ่าน (โมดูล)',
@@ -31,6 +34,8 @@ var HEAD_APP = ['ห้อง', 'เลขที่', 'ยศ ชื่อ-ส�
 var HEAD_GAME = ['ห้อง', 'เลขที่', 'ยศ ชื่อ-สกุล', 'ชุด', 'คะแนน', 'คะแนนเต็ม', 'ร้อยละ', 'ภารกิจที่ผ่าน',
   'ดาว', 'Score-O', 'รหัสภารกิจ', 'ส่งล่าสุด', 'จำนวนครั้งที่ส่ง', 'ตรวจสอบ'];
 var HEAD_ROOM = ['รหัสห้อง', 'ชื่อห้อง / หลักสูตร', 'เปิด (วัน เวลา)', 'ปิด (วัน เวลา)', 'สั่งการ', 'รหัสภารกิจ (แผนที่)', 'สถานะตอนนี้', 'หมายเหตุ'];
+var HEAD_DEMO = ['เวลาล่าสุด', 'ยศ ชื่อ-สกุล', 'ติดต่อ', 'ประเภท', 'คะแนน', 'คะแนนเต็ม', 'ร้อยละ', 'รายละเอียด',
+  'ต้องการเล่นเวอร์ชันเต็ม', 'ความเห็น', 'จำนวนครั้งที่ส่ง', 'เริ่มทดลองเมื่อ'];
 var HEAD_LOG = ['เวลา', 'ห้อง', 'ประเภท', 'ชุด', 'เลขที่', 'ยศ ชื่อ-สกุล', 'รหัสภารกิจ', 'คะแนน', 'คะแนนเต็ม', 'ร้อยละ', 'ตรวจสอบ', 'ข้อมูลดิบ'];
 
 /* ---------- web endpoints ---------- */
@@ -39,6 +44,7 @@ function doPost(e) {
   lock.waitLock(20000);
   try {
     var d = JSON.parse(e.postData.contents);
+    if (d.kind === 'ping') return json_(presence_(d)); // สัญญาณออนไลน์: ไม่ต้องตรวจแผ่นงานทุกครั้ง
     ensureSheets_();
     var res = record_(d);
     return json_({ ok: true, result: res });
@@ -75,6 +81,8 @@ function ensureSheets_() {
   migrate_(makeSheet_(ss, SHEET_GAME, HEAD_GAME, 7), 1);
   migrate_(makeSheet_(ss, SHEET_LOG, HEAD_LOG, 0), 2);
   makeRoomSheet_(ss);
+  makeDemoSheet_(ss);
+  makeOnlineSheet_(ss);
   var st = ss.getSheetByName(SHEET_STAT);
   if (!st || st.getRange('A1').getValue() !== 'ภาพรวมทั้งหมด') writeStats_(ss);
 }
@@ -222,6 +230,7 @@ function roomInfo_(code) {
 
 /* ---------- recording ---------- */
 function record_(d) {
+  if (d.demo) return recordDemo_(d); // รุ่น Demo: แยกชีท ไม่ผ่านห้องเรียน
   var kind = d.kind === 'game' ? 'game' : 'app';
   var set = d.set === 'S' ? 'ย่อ' : 'เต็ม';
   var name = clean_(d.name, 80), sid = clean_(d.sid, 20), code = clean_(d.code, 30), room = normCode_(clean_(d.room, 20));
@@ -437,4 +446,128 @@ function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).se
 /* แก้แผ่น "ห้องเรียน" แล้วให้มีผลทันที (ล้างแคช) */
 function onEdit(e) {
   try { if (e && e.range && e.range.getSheet().getName() === SHEET_ROOM) CacheService.getScriptCache().remove('rooms'); } catch (err) {}
+}
+
+
+/* ---------- รุ่น Demo (ทดลองเล่น): เก็บแยกชีท ไม่ต้องมีห้อง ---------- */
+function makeDemoSheet_(ss) {
+  var sh = ss.getSheetByName(SHEET_DEMO);
+  if (sh) return sh;
+  sh = ss.insertSheet(SHEET_DEMO);
+  sh.getRange(1, 1, 1, HEAD_DEMO.length).setValues([HEAD_DEMO]).setFontWeight('bold').setBackground('#7a5c00').setFontColor('#ffffff');
+  sh.setFrozenRows(1);
+  sh.getRange('C:C').setNumberFormat('@');
+  sh.getRange('A:A').setNumberFormat('d/m/yyyy HH:mm:ss');
+  sh.getRange('L:L').setNumberFormat('d/m/yyyy HH:mm:ss');
+  sh.setColumnWidth(2, 190); sh.setColumnWidth(8, 260); sh.setColumnWidth(9, 150); sh.setColumnWidth(10, 220);
+  var r = sh.getRange('I2:I1000');
+  sh.setConditionalFormatRules([
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('ต้องการ').setBackground('#cdebd3').setRanges([r]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('ไม่ต้องการ').setBackground('#f6e2cd').setRanges([r]).build()]);
+  // สรุปอยู่แถว 1 เท่านั้น (ถ้าใส่แถวล่าง appendRow จะไปต่อท้ายผิดที่)
+  sh.getRange('N1:S1').setValues([['ทดลองทั้งหมด', '', 'ต้องการเวอร์ชันเต็ม', '', 'ไม่ต้องการ', '']]).setFontWeight('bold');
+  sh.getRange('O1').setFormula('=COUNTA(B2:B)');
+  sh.getRange('Q1').setFormula('=COUNTIF(I2:I,"ต้องการ")');
+  sh.getRange('S1').setFormula('=COUNTIF(I2:I,"ไม่ต้องการ")');
+  return sh;
+}
+
+function recordDemo_(d) {
+  var kind = d.kind === 'demofb' ? 'fb' : (d.kind === 'game' ? 'game' : 'app');
+  var name = clean_(d.name, 80), sid = clean_(d.sid, 40);
+  if (!name) throw new Error('missing name');
+  var app = kind === 'fb' ? (d.app === 'game' ? 'game' : 'app') : kind;
+  var label = app === 'game' ? 'เกม' : 'แบบฝึก';
+  var sh = makeDemoSheet_(SpreadsheetApp.getActive());
+  var n = sh.getLastRow(), row = 0, vals = n > 1 ? sh.getRange(2, 1, n - 1, HEAD_DEMO.length).getValues() : [];
+  for (var i = 0; i < vals.length; i++)
+    if (String(vals[i][1]).replace(/\s+/g, '') === name.replace(/\s+/g, '') && String(vals[i][2]).replace(/^'/, '') === sid && vals[i][3] === label) { row = i + 2; break; }
+  var now = new Date(), cur = row ? vals[row - 2] : null;
+  if (!row) { sh.appendRow([now, name, "'" + sid, label, 0, 0, 0, '', '', '', 0, now]); row = sh.getLastRow(); cur = [now, name, sid, label, 0, 0, 0, '', '', '', 0, now]; }
+  if (kind === 'fb') {
+    sh.getRange(row, 1).setValue(now);
+    sh.getRange(row, 9).setValue(d.want === 'yes' ? 'ต้องการ' : 'ไม่ต้องการ');
+    if (clean_(d.note, 300)) sh.getRange(row, 10).setValue(clean_(d.note, 300));
+    return { demo: true, feedback: d.want };
+  }
+  var score = num_(d.score), total = num_(d.total), pct = total > 0 ? Math.round(score / total * 1000) / 10 : 0;
+  var detail = app === 'game'
+    ? 'ผ่าน ' + num_(d.cleared) + '/' + num_(d.levels) + ' ภารกิจ · ดาว ' + num_(d.stars) + ' · ' + clean_(JSON.stringify(d.lv || {}), 200)
+    : clean_(Object.keys(d.mods || {}).map(function (k) { return k + ' ' + (d.mods[k] || '-'); }).join(' · '), 300);
+  var better = score >= num_(cur[4]);
+  sh.getRange(row, 1).setValue(now);
+  if (better) sh.getRange(row, 5, 1, 4).setValues([[score, total, pct, detail]]);
+  sh.getRange(row, 11).setValue(num_(cur[10]) + 1);
+  return { demo: true, pct: pct };
+}
+
+/* ---------- ออนไลน์ตอนนี้: เครื่องส่งสัญญาณทุก ~45 วินาที เก็บไว้ในแคช แล้วเขียนลงชีทไม่เกินทุก 30 วินาที ---------- */
+var ONLINE_HEAD_ROW = 13;
+var ONLINE_MODES = ['ฝึก · เต็ม', 'ฝึก · ย่อ', 'ฝึก · Demo', 'เกม · เต็ม', 'เกม · ย่อ', 'เกม · Demo'];
+
+function makeOnlineSheet_(ss) {
+  var sh = ss.getSheetByName(SHEET_ONLINE);
+  if (sh) return sh;
+  sh = ss.insertSheet(SHEET_ONLINE);
+  sh.getRange('A1').setValue('ออนไลน์ตอนนี้ (เครื่อง)').setFontWeight('bold').setFontSize(14);
+  sh.getRange('B1').setFormula('=COUNTIF(I' + (ONLINE_HEAD_ROW + 1) + ':I,"ออนไลน์")').setFontWeight('bold').setFontSize(18).setBackground('#cdebd3');
+  sh.getRange('A2').setValue('อัปเดตอัตโนมัติเมื่อมีเครื่องส่งสัญญาณ (ไม่เกินทุก 30 วินาที) · "หลุด" = ไม่ส่งสัญญาณเกิน ' + PRESENCE_SEC + ' วินาที (ปิดหน้า/ล็อกจอ/ไม่มีเน็ต)').setFontColor('#666666');
+  sh.getRange('A4:B4').setValues([['แยกตามโหมด', 'เครื่อง']]).setFontWeight('bold').setBackground('#2f3d27').setFontColor('#ffffff');
+  var rows = ONLINE_MODES.map(function (m) {
+    return [m, '=COUNTIFS(E' + (ONLINE_HEAD_ROW + 1) + ':E,"' + m + '",I' + (ONLINE_HEAD_ROW + 1) + ':I,"ออนไลน์")'];
+  });
+  sh.getRange(5, 1, rows.length, 2).setFormulas(rows);
+  var head = ['เครื่อง', 'ยศ ชื่อ-สกุล', 'เลขที่/ติดต่อ', 'ห้อง', 'โหมด', 'กำลังทำ', 'เข้ามาเมื่อ', 'เห็นล่าสุด', 'สถานะ'];
+  sh.getRange(ONLINE_HEAD_ROW, 1, 1, head.length).setValues([head]).setFontWeight('bold').setBackground('#2f3d27').setFontColor('#ffffff');
+  sh.setFrozenRows(ONLINE_HEAD_ROW);
+  sh.getRange('C:C').setNumberFormat('@');
+  sh.setColumnWidth(2, 190); sh.setColumnWidth(6, 230); sh.setColumnWidth(1, 160);
+  var rg = sh.getRange('I' + (ONLINE_HEAD_ROW + 1) + ':I1000');
+  sh.setConditionalFormatRules([
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('ออนไลน์').setBackground('#cdebd3').setRanges([rg]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('หลุด').setBackground('#eeeeee').setFontColor('#888888').setRanges([rg]).build()]);
+  return sh;
+}
+
+function presence_(d) {
+  var dev = clean_(d.dev, 40);
+  if (!dev) return { ok: false };
+  var cache = CacheService.getScriptCache(), now = Date.now(), map = {};
+  try { map = JSON.parse(cache.get('pres') || '{}'); } catch (e) { map = {}; }
+  var old = map[dev];
+  if (d.bye) { if (old) old.t = now - PRESENCE_SEC * 1000 - 1; }
+  else map[dev] = {
+    n: clean_(d.name, 60), s: clean_(d.sid, 30), r: normCode_(clean_(d.room, 20)), p: clean_(d.page, 30), a: clean_(d.act, 60),
+    f: old ? old.f : now, t: now
+  };
+  var keys = Object.keys(map);
+  for (var i = 0; i < keys.length; i++) if (now - map[keys[i]].t > 15 * 60000) delete map[keys[i]]; // ทิ้งเครื่องที่หายเกิน 15 นาที
+  var txt = JSON.stringify(map);
+  if (txt.length > 90000) { // แคชจุได้ ~100KB: ตัดเครื่องที่เก่าสุดออก
+    var arr = Object.keys(map).sort(function (a, b) { return map[a].t - map[b].t; });
+    while (txt.length > 90000 && arr.length) { delete map[arr.shift()]; txt = JSON.stringify(map); }
+  }
+  cache.put('pres', txt, 3600);
+  var last = Number(cache.get('presf') || 0);
+  if (now - last > 30000) { cache.put('presf', String(now), 600); flushPresence_(map); }
+  return { ok: true };
+}
+
+function flushPresence_(map) {
+  var sh = makeOnlineSheet_(SpreadsheetApp.getActive()), H = ONLINE_HEAD_ROW;
+  var list = Object.keys(map).map(function (k) { return { k: k, v: map[k] }; }).sort(function (a, b) { return b.v.t - a.v.t; });
+  var old = sh.getLastRow() - H;
+  if (old > 0) sh.getRange(H + 1, 1, old, 9).clearContent();
+  if (!list.length) return;
+  var vals = list.map(function (o) {
+    var v = o.v;
+    return [o.k, v.n, "'" + v.s, v.r, v.p, v.a, new Date(v.f), new Date(v.t)];
+  });
+  sh.getRange(H + 1, 1, vals.length, 8).setValues(vals);
+  var fm = vals.map(function (x, i) {
+    var r = H + 1 + i;
+    return ['=IF(H' + r + '="","",IF((NOW()-H' + r + ')*86400<' + PRESENCE_SEC + ',"ออนไลน์","หลุด"))'];
+  });
+  sh.getRange(H + 1, 9, fm.length, 1).setFormulas(fm);
+  sh.getRange(H + 1, 7, vals.length, 2).setNumberFormat('HH:mm:ss');
 }

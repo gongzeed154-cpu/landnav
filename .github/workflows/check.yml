@@ -18,7 +18,7 @@ jobs:
       - name: Rebuild pages and verify they are committed up to date
         run: |
           python3 tools/build.py
-          git diff --exit-code -- practice.html practice-short.html game.html game-short.html \
+          git diff --exit-code -- practice.html practice-short.html game.html game-short.html demo-practice.html demo-game.html \
             || { echo "::error::Generated pages are stale. Run python3 tools/build.py and commit the result."; exit 1; }
       # Every inline <script> and the hand-written JS files must at least parse.
       - name: JavaScript syntax check
@@ -38,4 +38,4 @@ jobs:
           }
           process.exit(bad ? 1 : 0);
           JS
-          node "$RUNNER_TEMP/syntax.js" practice.html practice-short.html game.html game-short.html compass.html gesture-compass.html manual.html index.html poster.html config.js sw.js qr.js
+          node "$RUNNER_TEMP/syntax.js" practice.html practice-short.html game.html game-short.html demo-practice.html demo-game.html compass.html gesture-compass.html manual.html index.html poster.html config.js sw.js qr.js
