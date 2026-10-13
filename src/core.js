@@ -1002,3 +1002,19 @@ function runFixDrill(o){
       <p class="muted" style="font-size:13px">เส้นประเขียว = แนวเล็งที่ถูกต้อง · เส้นประม่วง = เส้นที่คุณลาก</p>`;
     o.onDone({err,html});}
   ui('');}
+
+/* ---------- phone layout: the map fills the screen; the question sheet and the tool buttons open from a bottom dock ---------- */
+(function(){
+  const sh=document.getElementById('sheet');if(!sh)return;
+  const dock=document.createElement('nav');dock.className='dock';dock.setAttribute('aria-label','คำถามและเครื่องมือ');
+  dock.innerHTML='<button type="button" id="dkQ">คำถาม / คำตอบ</button><button type="button" id="dkT" hidden>เครื่องมือ</button>';
+  document.body.appendChild(dock);
+  const bq=dock.querySelector('#dkQ'),bt=dock.querySelector('#dkT');let pane='q';
+  const hasTools=()=>!!sh.querySelector(':scope > .tools');
+  function show(p){pane=p;document.body.dataset.pane=p;bq.setAttribute('aria-pressed',p==='q');bt.setAttribute('aria-pressed',p==='t');if(p==='q')bq.classList.remove('pulse');sh.scrollTop=0;}
+  bq.onclick=()=>show(pane==='q'?'none':'q');
+  bt.onclick=()=>show(pane==='t'?'none':'t');
+  function refresh(){const t=hasTools();bt.hidden=!t;if(!t&&pane==='t')show('q');else if(pane==='none'){bq.classList.remove('pulse');void bq.offsetWidth;bq.classList.add('pulse');}} // a new question while the sheet is closed: pulse the button
+  new MutationObserver(refresh).observe(sh,{childList:true});
+  show('q');refresh();
+})();
