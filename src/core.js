@@ -169,7 +169,7 @@ function genWorld(code){
   if(villages[0])landmarks.push({x:temple.x,y:temple.y,top:elev(temple.x,temple.y)+24,name:'วัด'+villages[0].name.replace('บ้าน',''),kind:'temple'});
   /* vegetation raster: 1 forest, 2 orchard, 3 rice paddy */
   const FR=MAP/40,veg=new Uint8Array(FR*FR),fc=document.createElement('canvas');fc.width=fc.height=FR;
-  const fx=fc.getContext('2d'),img=fx.createImageData(FR,FR);const COL={1:[200,226,176],2:[218,234,196],3:[238,242,208]};
+  const fx=fc.getContext('2d'),img=fx.createImageData(FR,FR);const COL={1:[190,219,164],2:[214,232,190],3:[236,242,204]};
   for(let j=0;j<FR;j++)for(let i=0;i<FR;i++){const x=i*40+20,y=MAP-(j*40+20);let t=0;const dr=Math.abs(x-riverX(y));
     if(dr<70||inSwamp(x,y)){}else{
       let nearV=false;for(const v of villages)if(hyp(x-v.x,y-v.y)<(v.small?260:420)){nearV=true;break;}
@@ -178,12 +178,39 @@ function genWorld(code){
       if(!t&&!nearV){for(const v of villages.slice(0,6)){const d=hyp(x-v.x,y-v.y);if(d>430&&d<700&&noise2(x/300+9,y/300)>0){t=2;break;}}}}
     if(t){veg[(FR-1-j)*FR+i]=t;const k=(j*FR+i)*4,cl=COL[t];img.data[k]=cl[0];img.data[k+1]=cl[1];img.data[k+2]=cl[2];img.data[k+3]=255;}}
   fx.putImageData(img,0,0);
+  /* smooth forest/field edges: sample the 40 m class raster at 20 m with bilinear weights and threshold it, plus a little grain */
+  const FS=2,FO=FR*FS,fc2=document.createElement('canvas');fc2.width=fc2.height=FO;
+  {const f2=fc2.getContext('2d'),im2=f2.createImageData(FO,FO),d2=im2.data;
+   const at=(rw,cl)=>veg[clamp(rw,0,FR-1)*FR+clamp(cl,0,FR-1)];
+   for(let v=0;v<FO;v++){const syy=(FR-1)-((v+0.5)/FS-0.5),r0=Math.floor(syy),fy=syy-r0;
+    for(let u=0;u<FO;u++){const sxx=(u+0.5)/FS-0.5,c0=Math.floor(sxx),fxx=sxx-c0;
+      const a00=at(r0,c0),a10=at(r0,c0+1),a01=at(r0+1,c0),a11=at(r0+1,c0+1);
+      if(!(a00|a10|a01|a11))continue;
+      let best=0,bv=0;for(let t=1;t<=3;t++){const m=((a00===t)*(1-fxx)+(a10===t)*fxx)*(1-fy)+((a01===t)*(1-fxx)+(a11===t)*fxx)*fy;if(m>bv){bv=m;best=t;}}
+      if(bv<0.42)continue;const cl=COL[best],gr=((Math.sin(u*12.9898+v*78.233)*43758.5453)%1)*5,k=(v*FO+u)*4;
+      d2[k]=cl[0]+gr;d2[k+1]=cl[1]+gr;d2[k+2]=cl[2]+gr*0.6;d2[k+3]=Math.min(1,(bv-0.42)*9)*255;}}
+   f2.putImageData(im2,0,0);}
+  /* shaded relief (light from the north-west) with a faint warm tint on high ground, as one RGBA layer */
+  const sc=document.createElement('canvas');sc.width=sc.height=N;
+  {const sx2=sc.getContext('2d'),sim=sx2.createImageData(N,N),sd=sim.data,Ln=Math.hypot(-0.55,0.55,0.63),lx=-0.55/Ln,ly=0.55/Ln,lz=0.63/Ln,EX=1.7;
+   for(let j=0;j<N;j++)for(let i=0;i<N;i++){const i0=Math.max(0,i-1),i1=Math.min(N-1,i+1),j0=Math.max(0,j-1),j1=Math.min(N-1,j+1);
+     const gx=(G[j*N+i1]-G[j*N+i0])/((i1-i0)*STEP)*EX,gy=(G[j1*N+i]-G[j0*N+i])/((j1-j0)*STEP)*EX,s=(-gx*lx-gy*ly+lz)/Math.sqrt(gx*gx+gy*gy+1)/lz; // 1 = flat ground
+     let r=196,g=160,b=110,a=clamp((G[j*N+i]-260)/520,0,1)*0.16;
+     const o=s<1?Math.min(0.34,(1-s)*0.5):Math.min(0.16,(s-1)*0.3),cr=s<1?30:255,cg=s<1?22:252,cb=s<1?12:235,a2=o+a*(1-o);
+     if(a2>0){r=(cr*o+r*a*(1-o))/a2;g=(cg*o+g*a*(1-o))/a2;b=(cb*o+b*a*(1-o))/a2;}
+     const k=((N-1-j)*N+i)*4;sd[k]=r;sd[k+1]=g;sd[k+2]=b;sd[k+3]=a2*255;}
+   sx2.putImageData(sim,0,0);}
   const vegAt=(x,y)=>{if(x<0||y<0||x>=MAP||y>=MAP)return 0;return veg[((y/40)|0)*FR+((x/40)|0)];};
   const isForest=(x,y)=>vegAt(x,y)===1;
+  /* detail that does not touch the terrain stream: river centre line, house footprints turned along the road */
+  const riverPts=[];for(let y=-300;y<=MAP+300;y+=20)riverPts.push([riverX(y),y]);
+  {const dr=mulberry32(hashStr(code+'#detail'));
+   const roadAng=(x,y)=>{let bd=1e9,ba=0;for(const rd of allRoads)for(let i=0;i+1<rd.length;i+=2){const dx=rd[i][0]-x,dy=rd[i][1]-y,d=dx*dx+dy*dy;if(d<bd){bd=d;ba=Math.atan2(rd[i+1][1]-rd[i][1],rd[i+1][0]-rd[i][0]);}}return ba;};
+   for(const b of buildings){b.a=(roadDist(b.x,b.y)<170?roadAng(b.x,b.y):dr()*Math.PI)+(dr()-.5)*0.25;b.w=9+dr()*10;b.h=7+dr()*7;}}
   /* declination */
   r();r();const gm=0; // stored in mils internally; + = magnetic north east of grid north
   W={code,elev,elevFn,grad,riverX,river,swamp,inSwamp,streams,streamPaths:streams.map(toPath),streamDist,roads:allRoads,roadPaths:[road1,road2].map(toPath),road3Path:toPath(road3),bridges,isWater,roadDist,
-    FR,villages,buildings,temple,school,hospital,ponds,peaks,towers,landmarks,saddles,ridges,valleys,cliff,crater,samp,forestCanvas:fc,vegAt,isForest,minor,index,supp,dep,labels,gm,gmDeg:gm/MPD,NT};
+    FR,riverPts,shadeCanvas:sc,villages,buildings,temple,school,hospital,ponds,peaks,towers,landmarks,saddles,ridges,valleys,cliff,crater,samp,forestCanvas:fc2,vegAt,isForest,minor,index,supp,dep,labels,gm,gmDeg:gm/MPD,NT};
 }
 const landOK=(x,y)=>x>200&&y>200&&x<MAP-200&&y<MAP-200&&!W.isWater(x,y)&&Math.abs(x-W.riverX(y))>40;
 function randLand(margin){margin=margin||300;for(let i=0;i<200;i++){const x=rnd(margin,MAP-margin),y=rnd(margin,MAP-margin);if(landOK(x,y))return{x,y};}return{x:MAP/2,y:MAP/2};}
@@ -199,6 +226,7 @@ const SYM={
   spot(c,x,y,s,trig){c.fillStyle='#5b3214';if(trig){c.strokeStyle='#1a1a1a';c.lineWidth=1.2;c.beginPath();c.moveTo(x,y-s*.75);c.lineTo(x+s*.7,y+s*.5);c.lineTo(x-s*.7,y+s*.5);c.closePath();c.stroke();c.fillStyle='#1a1a1a';}c.beginPath();c.arc(x,y,1.8,0,7);c.fill();},
   marsh(c,x,y,s){c.strokeStyle='#2f78b8';c.lineWidth=1.1;c.beginPath();c.moveTo(x-s*.6,y);c.lineTo(x+s*.6,y);for(const dx of[-.35,0,.35]){c.moveTo(x+dx*s,y);c.lineTo(x+dx*s,y-s*.45);}c.stroke();},
   pond(c,x,y,s){c.fillStyle='#9fcbea';c.strokeStyle='#3584c6';c.lineWidth=1;c.beginPath();c.ellipse(x,y,s*.75,s*.5,0,0,7);c.fill();c.stroke();},
+  tree(c,x,y,h){const r=2.2+(h&3)*0.45;c.fillStyle='rgba(86,138,70,.55)';c.beginPath();c.arc(x,y,r,0,7);c.fill();c.strokeStyle='rgba(58,102,50,.5)';c.lineWidth=.7;c.stroke();},
   orchard(c,x,y){c.fillStyle='#3d7a2a';for(const[dx,dy]of[[-3,-2],[3,-2],[0,3]]){c.beginPath();c.arc(x+dx,y+dy,1.3,0,7);c.fill();}},
   paddy(c,x,y){c.strokeStyle='#4f8a3a';c.lineWidth=1;c.beginPath();for(const dx of[-3,0,3]){c.moveTo(x+dx,y+2);c.lineTo(x+dx*1.4,y-3);}c.moveTo(x-5,y+2);c.lineTo(x+5,y+2);c.stroke();},
 };
@@ -303,8 +331,9 @@ function drawMap(){
   c.setTransform(DPR,0,0,DPR,0,0);c.fillStyle='#d9d3c0';c.fillRect(0,0,w,h);
   c.fillStyle='#f6f1e2';c.fillRect(ox,oy-MAP*z,MAP*z,MAP*z);
   c.imageSmoothingEnabled=true;c.drawImage(W.forestCanvas,ox,oy-MAP*z,MAP*z,MAP*z);
+  c.drawImage(W.shadeCanvas,ox-20*z,oy-(MAP+20)*z,(MAP+40)*z,(MAP+40)*z); // shaded relief over paper and forest
   // vegetation symbols
-  if(z>0.09){const st=z>0.3?2:z>0.15?3:6;for(let j=0;j<W.FR;j+=st)for(let i=(j/st)%2?Math.floor(st/2):0;i<W.FR;i+=st){const x=i*40+20,y=j*40+20,[p,q]=S2(x,y);if(p<-8||q<-8||p>w+8||q>h+8)continue;const t=W.vegAt(x,y);if(t===2)SYM.orchard(c,p,q);else if(t===3)SYM.paddy(c,p,q);}}
+  if(z>0.09){const st=z>0.3?2:z>0.15?3:6;for(let j=0;j<W.FR;j+=st)for(let i=(j/st)%2?Math.floor(st/2):0;i<W.FR;i+=st){const x=i*40+20,y=j*40+20,[p,q]=S2(x,y);if(p<-8||q<-8||p>w+8||q>h+8)continue;const t=W.vegAt(x,y);if(t===2)SYM.orchard(c,p,q);else if(t===3)SYM.paddy(c,p,q);else if(t===1&&z>0.16){const hh=(Math.imul(i,73856093)^Math.imul(j,19349663))>>>0,jt=st*40*z/5;SYM.tree(c,p+(hh%7-3)*jt/3,q+((hh>>3)%7-3)*jt/3,hh);}}}
   c.save();c.beginPath();c.rect(ox,oy-MAP*z,MAP*z,MAP*z);c.clip();
   c.setTransform(DPR*z,0,0,-DPR*z,DPR*ox,DPR*oy);
   const xa=Math.floor(clamp((0-ox)/z,0,MAP-1)/1000),xb=Math.floor(clamp((w-ox)/z,0,MAP-1)/1000);
@@ -318,7 +347,10 @@ function drawMap(){
   if(z>0.06){c.strokeStyle='#a05a22';c.lineWidth=0.9/z;c.stroke(W.dep);}
   c.fillStyle='#cfe5f3';c.beginPath();c.ellipse(W.swamp.x,W.swamp.y,W.swamp.a,W.swamp.b,0,0,7);c.fill();
   c.strokeStyle='#3584c6';c.lineWidth=Math.max(5,1.1/z);for(const p of W.streamPaths)c.stroke(p);
-  c.lineWidth=Math.max(16,2.2/z);c.stroke(W.river);
+  {const P=W.riverPts,wm=y=>20+26*(1-clamp(y/MAP,0,1)); // the river widens towards the south (downstream)
+   for(let pass=0;pass<2;pass++)for(let k=0;k+1<P.length;k+=8){const wpx=Math.max(wm(P[k][1])*z,2.2),wide=wpx>4.5;if(pass===0&&!wide)continue;
+     c.strokeStyle=pass===0?'#3584c6':wide?'#bddaf0':'#3584c6';c.lineWidth=(pass===0?wpx+2.6:wpx)/z;
+     c.beginPath();c.moveTo(P[k][0],P[k][1]);for(let m=k+1;m<=Math.min(k+8,P.length-1);m++)c.lineTo(P[m][0],P[m][1]);c.stroke();}}
   c.strokeStyle='#2b2118';c.lineWidth=Math.max(16,4.4/z);for(const p of W.roadPaths)c.stroke(p);
   c.strokeStyle='#f0a24a';c.lineWidth=Math.max(10,2.6/z);for(const p of W.roadPaths)c.stroke(p);
   c.strokeStyle='#b4502a';c.lineWidth=Math.max(8,1.7/z);c.stroke(W.road3Path);
@@ -330,9 +362,15 @@ function drawMap(){
   if(z>0.03){const s=W.swamp;for(let i=-2;i<=2;i++)for(let j=-1;j<=1;j++){const x=s.x+i*s.a*0.33,y=s.y+j*s.b*0.5;if(W.inSwamp(x,y)){const[p,q]=S2(x,y);SYM.marsh(c,p,q,9);}}}
   for(const b of W.bridges){const[p,q]=S2(b.x,b.y);const L=Math.max(9,50*z),Wd=Math.max(5,16*z);c.save();c.translate(p,q);c.rotate(-b.ang);c.strokeStyle='#1a1a1a';c.lineWidth=1.4;
     c.beginPath();c.moveTo(-L/2-3,-Wd-3);c.lineTo(-L/2,-Wd);c.lineTo(L/2,-Wd);c.lineTo(L/2+3,-Wd-3);c.moveTo(-L/2-3,Wd+3);c.lineTo(-L/2,Wd);c.lineTo(L/2,Wd);c.lineTo(L/2+3,Wd+3);c.stroke();c.restore();}
-  const bs=clamp(16*z,2.2,9);for(const b of W.buildings){const[p,q]=S2(b.x,b.y);SYM.building(c,p,q,bs);}
+  for(const b of W.buildings){const[p,q]=S2(b.x,b.y);if(p<-20||q<-20||p>w+20||q>h+20)continue;const bw=Math.max(2.2,b.w*z),bh=Math.max(1.8,b.h*z);
+    c.save();c.translate(p,q);c.rotate(-b.a);c.fillStyle=z>0.3?'#76716a':'#1a1a1a';c.fillRect(-bw/2,-bh/2,bw,bh);if(z>0.3){c.strokeStyle='#1a1a1a';c.lineWidth=1;c.strokeRect(-bw/2,-bh/2,bw,bh);}c.restore();}
   const ss=clamp(26*z,6,11);
   for(const pd of W.ponds){const[p,q]=S2(pd.x,pd.y);SYM.pond(c,p,q,clamp(40*z,4,10));}
+  /* ground plans under the symbols (compound walls, buildings, mast base and guy lines) once zoomed in; the symbols themselves stay as the key shows them */
+  if(z>0.22){const plan=(pt,wm,hm,fill)=>{const[p,q]=S2(pt.x,pt.y);c.save();c.fillStyle=fill;c.strokeStyle='rgba(70,58,46,.75)';c.lineWidth=1;c.fillRect(p-wm*z/2,q-hm*z/2,wm*z,hm*z);c.strokeRect(p-wm*z/2,q-hm*z/2,wm*z,hm*z);
+      if(z>0.45){c.fillStyle='rgba(120,110,98,.85)';c.fillRect(p-wm*z*0.28,q-hm*z*0.1,wm*z*0.22,hm*z*0.3);c.fillRect(p+wm*z*0.06,q-hm*z*0.1,wm*z*0.2,hm*z*0.3);}c.restore();};
+    plan(W.temple,90,70,'rgba(222,212,190,.85)');plan(W.school,110,70,'rgba(226,224,208,.85)');if(W.hospital)plan(W.hospital,90,70,'rgba(228,224,214,.85)');
+    for(const t of W.towers){const[p,q]=S2(t.x,t.y);c.save();c.strokeStyle='rgba(60,50,40,.55)';c.lineWidth=.8;c.beginPath();for(const a of[0.4,2.5,4.6]){c.moveTo(p,q);c.lineTo(p+Math.cos(a)*45*z,q+Math.sin(a)*45*z);}c.stroke();c.fillStyle='rgba(120,110,98,.9)';c.fillRect(p-7*z,q-5*z,14*z,10*z);c.restore();}}
   {const[p,q]=S2(W.temple.x,W.temple.y);SYM.temple(c,p,q,ss);}
   {const[p,q]=S2(W.school.x,W.school.y);SYM.school(c,p,q,ss);}
   if(W.hospital){const[p,q]=S2(W.hospital.x,W.hospital.y);SYM.hospital(c,p,q,ss);}
@@ -719,15 +757,15 @@ $('#zfit').onclick=fitView;
 /* ---------- lensatic compass (model of the issued compass) ---------- */
 const C={x:0,y:0,h0:0,heading:0,disp:0,vel:0,far:null,near:null,lms:[],mode:'top',lum:0,night:false,hl:null};C.big=(window.innerWidth<700);try{const v=localStorage.getItem('lnav-cbig');if(v)C.big=v==='1';}catch(e){}
 function computePano(x,y){
-  const h0=W.elev(x,y)+1.7,far=new Float32Array(720),near=new Float32Array(720);
-  for(let k=0;k<720;k++){const a=k*0.5*Math.PI/180,sx=Math.sin(a),sy=Math.cos(a);let mf=-1,mn=-1;
-    for(let d=30;d<6500;d+=d<1000?25:d<3000?50:100){const t=(W.elev(x+sx*d,y+sy*d)-h0)/d;if(t>mf)mf=t;if(d<700&&t>mn)mn=t;}
-    far[k]=Math.atan(mf);near[k]=Math.atan(mn);}
+  const h0=W.elev(x,y)+1.7,far=new Float32Array(720),mid=new Float32Array(720),near=new Float32Array(720);
+  for(let k=0;k<720;k++){const a=k*0.5*Math.PI/180,sx=Math.sin(a),sy=Math.cos(a);let mf=-1,mn=-1,mm=-1;
+    for(let d=30;d<6500;d+=d<1000?25:d<3000?50:100){const t=(W.elev(x+sx*d,y+sy*d)-h0)/d;if(t>mf)mf=t;if(d<2200&&t>mm)mm=t;if(d<700&&t>mn)mn=t;}
+    far[k]=Math.atan(mf);mid[k]=Math.atan(mm);near[k]=Math.atan(mn);}
   const lms=[];
   for(const L of W.landmarks){const d=hyp(L.x-x,L.y-y);if(d<120||d>7000)continue;const az=gridAz({x,y},L);const tgt=(L.top-h0)/d;const a=az*Math.PI/180,sx=Math.sin(a),sy=Math.cos(a);
     let vis=true;for(let s=40;s<d-60;s+=s<1000?25:50){if((W.elev(x+sx*s,y+sy*s)-h0)/s>tgt+0.002){vis=false;break;}}
     lms.push({...L,az,ang:Math.atan(tgt),d,vis});}
-  Object.assign(C,{x,y,h0,far,near,lms});return lms;}
+  Object.assign(C,{x,y,h0,far,mid,near,lms});return lms;}
 const interpH=(arr,az)=>{const f=wrap360(az)*2,i=Math.floor(f)%720,j=(i+1)%720,t=f-Math.floor(f);return arr[i]*(1-t)+arr[j]*t;};
 const magHeading=()=>wrap360(C.heading-W.gmDeg);
 function stepCard(){const tgt=magHeading();const d=angDiff(tgt,C.disp);C.vel=C.vel*0.8+d*0.07;C.disp=wrap360(C.disp+C.vel);return Math.abs(d)>0.02||Math.abs(C.vel)>0.02;}
@@ -739,12 +777,16 @@ function drawPano(){
   if(C.vexFor!==C.far){let mx=0;for(let k=0;k<C.far.length;k++)if(C.far[k]>mx)mx=C.far[k];C.maxDeg=mx*180/Math.PI;C.vexFor=C.far;}
   const VEX=clamp((y0*0.75)/(Math.max(C.maxDeg,0.5)*ppd),1,5);
   const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#7fb0d4');g.addColorStop(.6,'#d8e6ec');g.addColorStop(1,'#d8e6ec');c.fillStyle=g;c.fillRect(0,0,w,h);
+  if(!C.night){c.save();for(const[caz,cy,cs]of[[20,.14,1],[85,.09,.8],[150,.19,1.2],[215,.11,.9],[275,.17,1.1],[330,.08,.7]])for(let q=0;q<5;q++){const px=w/2+angDiff(caz+q*2.3,C.heading)*ppd;if(px<-60||px>w+60)continue;c.fillStyle='rgba(255,255,255,'+(q===2?.55:.4)+')';c.beginPath();c.ellipse(px,h*cy+(q%2)*4,(16+(q===2?10:0))*cs*(ppd/6),(6+(q===2?3:0))*cs,0,0,7);c.fill();}c.restore();}
   const layer=(arr,col)=>{c.fillStyle=col;c.beginPath();c.moveTo(0,h);for(let px=0;px<=w;px+=2){const az=C.heading+(px-w/2)/ppd;const yy=y0-interpH(arr,az)*180/Math.PI*ppd*VEX;c.lineTo(px,yy);}c.lineTo(w,h);c.closePath();c.fill();};
-  layer(C.far,'#93a68c');layer(C.near,'#5c7150');
+  layer(C.far,'#a3b5a6');if(C.mid)layer(C.mid,'#7d9672');layer(C.near,'#5c7150');
+  {const VX=typeof VEX==='number'?VEX:1;c.fillStyle='#4f6746';c.beginPath(); // ragged canopy along the near ridge
+   for(let px=0;px<=w;px+=4){const az=C.heading+(px-w/2)/ppd,yy=y0-interpH(C.near,az)*180/Math.PI*ppd*VX,hs=Math.abs(Math.sin(Math.floor(az*7)*12.9898)*43758.5453)%1;if(yy>h-8)continue;c.moveTo(px+2.5+hs*1.5,yy+1);c.arc(px,yy+1,2+hs*2.6,0,Math.PI,true);}c.fill();
+   const hz=c.createLinearGradient(0,y0-h*0.45,0,y0+h*0.08);hz.addColorStop(0,'rgba(216,230,236,0)');hz.addColorStop(1,'rgba(216,230,236,.28)');c.fillStyle=hz;c.fillRect(0,y0-h*0.45,w,h*0.53);} // haze at the horizon
   for(const L of C.lms){if(!L.vis)continue;const da=angDiff(L.az,C.heading);if(Math.abs(da)>FOV/2+3)continue;const px=w/2+da*ppd,py=y0-L.ang*180/Math.PI*ppd*VEX;
     c.save();c.strokeStyle='#1d1d1d';c.fillStyle='#1d1d1d';c.lineWidth=1.4;
-    if(L.kind==='tower'){c.beginPath();c.moveTo(px-5,py+22);c.lineTo(px,py);c.lineTo(px+5,py+22);c.stroke();c.fillStyle='#e0332a';c.beginPath();c.arc(px,py,2.4,0,7);c.fill();}
-    else if(L.kind==='temple'){c.beginPath();c.moveTo(px-7,py+14);c.lineTo(px,py);c.lineTo(px+7,py+14);c.closePath();c.fillStyle='#f2f0e6';c.fill();c.stroke();}
+    if(L.kind==='tower'){c.beginPath();c.moveTo(px-5,py+22);c.lineTo(px,py);c.lineTo(px+5,py+22);c.moveTo(px-3.4,py+13);c.lineTo(px+3.4,py+13);c.moveTo(px-4.2,py+18);c.lineTo(px+1.2,py+8);c.stroke();c.fillStyle='#e0332a';c.beginPath();c.arc(px,py,2.4,0,7);c.fill();}
+    else if(L.kind==='temple'){c.beginPath();c.moveTo(px-7,py+14);c.lineTo(px,py);c.lineTo(px+7,py+14);c.closePath();c.fillStyle='#f2f0e6';c.fill();c.stroke();c.strokeStyle='#c9a227';c.lineWidth=1.6;c.beginPath();c.moveTo(px,py);c.lineTo(px,py-8);c.stroke();}
     else if(C.labels!==false){c.beginPath();c.moveTo(px,py+1);c.lineTo(px,py-12);c.stroke();c.fillStyle='#e0332a';c.beginPath();c.moveTo(px,py-12);c.lineTo(px+8,py-9);c.lineTo(px,py-6);c.fill();}
     else if(L.kind==='peak'){c.fillStyle='#e0332a';c.strokeStyle='#fff';c.lineWidth=1.2;c.beginPath();c.moveTo(px,py-3);c.lineTo(px+5,py-11);c.lineTo(px-5,py-11);c.closePath();c.fill();c.stroke();}
     if(C.labels===false){c.restore();continue;}
