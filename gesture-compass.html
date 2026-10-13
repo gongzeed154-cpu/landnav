@@ -1186,7 +1186,7 @@ function pinchStep(){
 function bezel(dir){C.lum=wrap360(C.lum+dir*3);A.clicks-=dir;clickSnd();try{navigator.vibrate&&navigator.vibrate(8);}catch(e){}dirty=true;updateClicks();}
 
 /* ---------- landscape view: look up/down with the head, zoom with two open palms ---------- */
-function setPV(fov,pitch){PV.fov=clamp(fov,25,120);PV.pitch=clamp(pitch,-15,45);dirty=true;
+function setPV(fov,pitch){PV.fov=clamp(fov,25,120);PV.pitch=clamp(pitch,-30,60);dirty=true;
   const r=document.getElementById('vRead');if(r)r.textContent=`มุมกว้าง ${Math.round(PV.fov)}° · ${PV.pitch>=0?'เงย':'ก้ม'} ${Math.abs(Math.round(PV.pitch))}°`;}
 function pitchStep(now,dt){
   if(now-T.faceT>300||GS.label==='up')return;const e=Math.abs(T.pit)-SET.pdz;if(e<=0)return;
@@ -1370,6 +1370,9 @@ const mEnd=e=>{if(e.pointerId!==mPtr)return;mPtr=null;const r=mapC.getBoundingCl
 mapC.addEventListener('pointerup',mEnd);mapC.addEventListener('pointercancel',mEnd);
 mapC.addEventListener('wheel',e=>{e.preventDefault();const r=mapC.getBoundingClientRect(),p={x:e.clientX-r.left,y:e.clientY-r.top},a=M2(p.x,p.y);
   V.z=clamp(V.z*Math.exp(-e.deltaY*0.0015),fitZoom()*0.9,zMax());const w=mapC.clientWidth,h=mapC.clientHeight;V.cx=a.x-(p.x-w/2)/V.z;V.cy=a.y+(p.y-h/2)/V.z;dirty=true;},{passive:false});
+let pDrag=null;panoC.addEventListener('pointerdown',e=>{try{panoC.setPointerCapture(e.pointerId);}catch(x){}pDrag={y:e.clientY,p:PV.pitch};});
+panoC.addEventListener('pointermove',e=>{if(!pDrag)return;setPV(PV.fov,pDrag.p+(e.clientY-pDrag.y)/(panoC.clientWidth/PV.fov));});
+panoC.addEventListener('pointerup',()=>{pDrag=null;});panoC.addEventListener('pointercancel',()=>{pDrag=null;});
 panoC.addEventListener('wheel',e=>{e.preventDefault();setPV(PV.fov*Math.exp(e.deltaY*0.0015),PV.pitch);},{passive:false});
 
 /* ---------- compass view ---------- */

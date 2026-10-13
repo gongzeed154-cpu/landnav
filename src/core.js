@@ -783,7 +783,7 @@ function stepCard(){const tgt=magHeading();const d=angDiff(tgt,C.disp);C.vel=C.v
 let ACx=null;function clickSnd(){try{ACx=ACx||new(window.AudioContext||window.webkitAudioContext)();const o=ACx.createOscillator(),g=ACx.createGain();o.type='square';o.frequency.value=2400;g.gain.setValueAtTime(0.05,ACx.currentTime);g.gain.exponentialRampToValueAtTime(0.0001,ACx.currentTime+0.03);o.connect(g);g.connect(ACx.destination);o.start();o.stop(ACx.currentTime+0.04);}catch(e){}}
 function drawPano(){
   const c=panoX,w=panoC.clientWidth,h=panoC.clientHeight;if(!w||!C.far)return;c.setTransform(DPR,0,0,DPR,0,0);
-  const ppd=w/FOV,y0=h*0.7;
+  const ppd=w/FOV,y0=h*0.7+clamp(C.pitch||0,-20,40)*ppd; // C.pitch: look up (+) / down (-) in degrees, dragged vertically
   // vertical exaggeration so distant hills stand out on small phone screens (azimuths are unchanged)
   if(C.vexFor!==C.far){let mx=0;for(let k=0;k<C.far.length;k++)if(C.far[k]>mx)mx=C.far[k];C.maxDeg=mx*180/Math.PI;C.vexFor=C.far;}
   const VEX=clamp((y0*0.75)/(Math.max(C.maxDeg,0.5)*ppd),1,5);
@@ -892,8 +892,9 @@ function drawDial(){
 }
 // turning the body: drag the view
 let CT=null;const comp=$('#comp');
-comp.addEventListener('pointerdown',e=>{comp.setPointerCapture(e.pointerId);CT={x:e.clientX,h:C.heading};});
-comp.addEventListener('pointermove',e=>{if(!CT)return;const w=panoC.clientWidth||300;C.heading=wrap360(CT.h-(e.clientX-CT.x)*FOV/w);requestDraw();});
+comp.addEventListener('pointerdown',e=>{comp.setPointerCapture(e.pointerId);CT={x:e.clientX,y:e.clientY,h:C.heading,p:C.pitch||0,pano:e.target===panoC};});
+comp.addEventListener('pointermove',e=>{if(!CT)return;const w=panoC.clientWidth||300,ppd=w/FOV;C.heading=wrap360(CT.h-(e.clientX-CT.x)*FOV/w);if(CT.pano)C.pitch=clamp(CT.p+(e.clientY-CT.y)/ppd,-20,40);requestDraw();});
+comp.addEventListener('dblclick',e=>{const r=panoC.getBoundingClientRect();if(e.clientY>=r.top&&e.clientY<=r.bottom){C.pitch=0;requestDraw();}});
 const endCT=()=>{CT=null;};comp.addEventListener('pointerup',endCT);comp.addEventListener('pointercancel',endCT);
 const turn=d=>{C.heading=wrap360(C.heading+d);requestDraw();};
 $('#tl2').onclick=()=>turn(-10);$('#tl1').onclick=()=>turn(-0.5);$('#tr1').onclick=()=>turn(0.5);$('#tr2').onclick=()=>turn(10);
